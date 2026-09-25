@@ -86,3 +86,79 @@ describe('rentalRateFormSchema', () => {
     ).toBe(false)
   })
 })
+
+describe('advance / deposit switches', () => {
+  const property = { property_name: 'Casa', address: '1 Main Street' }
+
+  it('reads a checkbox: hidden "0" then checked "1" arrives as true', () => {
+    const r = propertyFormSchema.parse({
+      ...property,
+      require_advance: '1',
+      require_deposit: '0',
+    })
+    expect(r.require_advance).toBe(true)
+    expect(r.require_deposit).toBe(false)
+  })
+
+  it('a caller that never mentions them leaves them undefined (means: do not change)', () => {
+    const r = propertyFormSchema.parse(property)
+    expect(r.require_advance).toBeUndefined()
+    expect(r.require_deposit).toBeUndefined()
+  })
+
+  it('accepts JSON booleans (mobile API) and ignores junk', () => {
+    expect(
+      roomFormSchema.parse({ require_advance: true, require_deposit: false }),
+    ).toMatchObject({ require_advance: true, require_deposit: false })
+    expect(
+      roomFormSchema.parse({ require_advance: 'maybe' }).require_advance,
+    ).toBeUndefined()
+  })
+})
+
+describe('contact number (Philippine phone)', () => {
+  const base = { property_name: 'Casa', address: '1 Main Street' }
+
+  it('is optional', () => {
+    expect(propertyFormSchema.parse(base).contact_number).toBeUndefined()
+    expect(
+      propertyFormSchema.parse({ ...base, contact_number: '   ' })
+        .contact_number,
+    ).toBeUndefined()
+  })
+
+  it('saves a valid number in one clean form, however it was typed', () => {
+    for (const typed of [
+      '0917 123 4567',
+      '09171234567',
+      '+639171234567',
+      '9171234567',
+    ]) {
+      expect(
+        propertyFormSchema.parse({ ...base, contact_number: typed })
+          .contact_number,
+      ).toBe('+63 917 123 4567')
+    }
+    expect(
+      propertyFormSchema.parse({ ...base, contact_number: '(02) 8123 4567' })
+        .contact_number,
+    ).toBe('+63 2 8123 4567')
+  })
+
+  it('rejects a number that is not Philippine / not real, with a message for the field', () => {
+    for (const typed of [
+      '12345',
+      'call me',
+      '+1 415 555 2671',
+      '0900 000 0000',
+      '091231823478432',
+    ]) {
+      const r = propertyFormSchema.safeParse({ ...base, contact_number: typed })
+      expect(r.success, typed).toBe(false)
+      if (!r.success) {
+        const issue = r.error.issues.find((i) => i.path[0] === 'contact_number')
+        expect(issue?.message).toMatch(/valid Philippine number/)
+      }
+    }
+  })
+})

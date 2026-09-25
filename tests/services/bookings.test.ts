@@ -140,6 +140,47 @@ describe('createBooking', () => {
     )
   })
 
+  it('a room without advance/deposit sends neither argument (works before migration 0014)', async () => {
+    asUser.mockResolvedValue(user(['tenant'], 900))
+    await service.createBooking(1, input)
+    const args = vi.mocked(bookingsRepo.callCreateBooking).mock.calls[0][0]
+    expect('p_advance' in args).toBe(false)
+    expect('p_deposit' in args).toBe(false)
+  })
+
+  it('adds 1 month advance and 1 month deposit to the total when the room requires them', async () => {
+    asUser.mockResolvedValue(user(['tenant'], 900))
+    vi.mocked(roomsRepo.getRoom).mockResolvedValue({
+      room_id: 10,
+      property_id: 1,
+      require_advance: true,
+      require_deposit: true,
+    } as never)
+    await service.createBooking(1, input)
+    expect(bookingsRepo.callCreateBooking).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_total: 24000, // 8000 rent + 8000 advance + 8000 deposit
+        p_advance: 8000,
+        p_deposit: 8000,
+      }),
+    )
+  })
+
+  it('advance only', async () => {
+    asUser.mockResolvedValue(user(['tenant'], 900))
+    vi.mocked(roomsRepo.getRoom).mockResolvedValue({
+      room_id: 10,
+      property_id: 1,
+      require_advance: true,
+      require_deposit: false,
+    } as never)
+    await service.createBooking(1, input)
+    const args = vi.mocked(bookingsRepo.callCreateBooking).mock.calls[0][0]
+    expect(args.p_total).toBe(16000)
+    expect(args.p_advance).toBe(8000)
+    expect('p_deposit' in args).toBe(false)
+  })
+
   it('rejects when no rate exists for the period', async () => {
     asUser.mockResolvedValue(user(['tenant']))
     vi.mocked(discoveryRepo.listActiveRates).mockResolvedValue([])
