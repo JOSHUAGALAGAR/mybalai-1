@@ -6,11 +6,14 @@ import { deleteRoomAction } from '@/app/(protected)/landlord/properties/actions'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { BedManager } from '@/components/property/bed-manager'
 import { ConfirmButton } from '@/components/property/confirm-button'
+import { PhotoManager } from '@/components/property/photo-manager'
 import { StatusBadge } from '@/components/property/property-status-badge'
 import { Button } from '@/components/ui/button'
 import { requireArea } from '@/lib/auth/dal'
+import { advanceDepositLabel } from '@/schemas/booking'
 import { getBedStatuses } from '@/services/beds.service'
 import { ServiceError } from '@/services/errors'
+import { listGallery } from '@/services/property-images.service'
 import { getRoomDetail, getRoomFormOptions } from '@/services/rooms.service'
 
 export const metadata: Metadata = { title: 'Room' }
@@ -42,9 +45,15 @@ export default async function RoomDetailPage({
   }
 
   const { property, room, beds } = detail
-  const [{ types, statuses }, bedStatuses] = await Promise.all([
+  const [{ types, statuses }, bedStatuses, gallery] = await Promise.all([
     getRoomFormOptions(),
     getBedStatuses(),
+    listGallery({ kind: 'room', propertyId, roomId }).catch((error) => {
+      // Photo tables missing (migration 0013 not applied): the page still works without them.
+      if (error instanceof ServiceError) throw error
+      console.error('[landlord] gallery unavailable:', error)
+      return null
+    }),
   ])
 
   const roomStatus = statuses.find((s) => s.room_status_id === room.status_id)
@@ -65,6 +74,10 @@ export default async function RoomDetailPage({
     ['Floor', room.floor],
     ['Area', room.area_sqm != null ? `${room.area_sqm} sqm` : null],
     ['Max occupants', String(room.max_occupants)],
+    [
+      'Advance & deposit',
+      advanceDepositLabel(room.require_advance, room.require_deposit),
+    ],
     ['Description', room.description],
   ]
 
@@ -107,6 +120,15 @@ export default async function RoomDetailPage({
           </ConfirmButton>
         </div>
       </div>
+
+      <PhotoManager
+        target={{
+          kind: 'room',
+          propertyId: property.property_id,
+          roomId: room.room_id,
+        }}
+        initialImages={gallery}
+      />
 
       <dl className="divide-y divide-border rounded-lg border border-border bg-card">
         {details

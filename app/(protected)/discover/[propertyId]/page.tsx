@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation'
 import { MapPin } from 'lucide-react'
 
 import { StarRating } from '@/components/discovery/star-rating'
+import { advanceDepositLabel } from '@/schemas/booking'
+import { PhotoGallery } from '@/components/discovery/photo-gallery'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -43,6 +45,7 @@ export default async function DiscoverDetailPage({
     typeName,
     amenityGroups,
     rooms,
+    photos,
     ratings,
     mapUrl,
     fromPrice,
@@ -59,16 +62,7 @@ export default async function DiscoverDetailPage({
         </Link>
       </div>
 
-      {property.property_image && (
-        <div className="aspect-[16/7] overflow-hidden rounded-xl bg-muted">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={property.property_image}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        </div>
-      )}
+      <PhotoGallery photos={photos} alt={property.property_name} />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -182,7 +176,18 @@ export default async function DiscoverDetailPage({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {rooms.map((room) => (
-              <Card key={room.roomId}>
+              <Card key={room.roomId} className="overflow-hidden">
+                {room.photos[0] && (
+                  <div className="bg-muted aspect-[16/9]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={room.photos[0]}
+                      alt={room.label}
+                      loading="lazy"
+                      className="size-full object-cover"
+                    />
+                  </div>
+                )}
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium text-foreground">
@@ -199,6 +204,18 @@ export default async function DiscoverDetailPage({
                     {room.maxOccupants}
                     {room.floor ? ` · floor ${room.floor}` : ''}
                   </p>
+                  {advanceDepositLabel(
+                    room.requireAdvance,
+                    room.requireDeposit,
+                  ) && (
+                    <p className="mt-2 text-xs font-medium text-foreground">
+                      Requires{' '}
+                      {advanceDepositLabel(
+                        room.requireAdvance,
+                        room.requireDeposit,
+                      )}
+                    </p>
+                  )}
                   {room.rates.length > 0 && (
                     <ul className="mt-2 space-y-0.5 text-sm text-foreground">
                       {room.rates.map((r) => (

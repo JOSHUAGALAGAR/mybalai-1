@@ -6,11 +6,14 @@ import { archivePropertyAction } from '@/app/(protected)/landlord/properties/act
 import { AmenitiesEditor } from '@/components/property/amenities-editor'
 import { ConfirmButton } from '@/components/property/confirm-button'
 import { StatusBadge } from '@/components/property/property-status-badge'
+import { PhotoManager } from '@/components/property/photo-manager'
 import { RateManager } from '@/components/property/rate-manager'
 import { Button } from '@/components/ui/button'
 import { requireArea } from '@/lib/auth/dal'
+import { advanceDepositLabel } from '@/schemas/booking'
 import { getBedStatuses } from '@/services/beds.service'
 import { ServiceError } from '@/services/errors'
+import { listGallery } from '@/services/property-images.service'
 import {
   getPropertyFormOptions,
   getPropertyOverview,
@@ -42,11 +45,17 @@ export default async function PropertyDetailPage({
   }
 
   const { property, rooms, beds, rates, amenityIds } = overview
-  const [{ types, statuses, amenities }, roomOpts, bedStatuses] =
+  const [{ types, statuses, amenities }, roomOpts, bedStatuses, gallery] =
     await Promise.all([
       getPropertyFormOptions(),
       getRoomFormOptions(),
       getBedStatuses(),
+      listGallery({ kind: 'property', propertyId }).catch((error) => {
+        // Photo tables missing (migration 0013 not applied): the page still works without them.
+        if (error instanceof ServiceError) throw error
+        console.error('[landlord] gallery unavailable:', error)
+        return null
+      }),
     ])
 
   const propStatus = statuses.find(
@@ -88,6 +97,10 @@ export default async function PropertyDetailPage({
     ['Type', typeName],
     ['Contact number', property.contact_number],
     ['Monthly payment rule', property.monthly_payment_rule],
+    [
+      'Advance & deposit (default for rooms)',
+      advanceDepositLabel(property.require_advance, property.require_deposit),
+    ],
     [
       'Coordinates',
       property.latitude != null && property.longitude != null
@@ -141,6 +154,11 @@ export default async function PropertyDetailPage({
           </ConfirmButton>
         </div>
       </div>
+
+      <PhotoManager
+        target={{ kind: 'property', propertyId: property.property_id }}
+        initialImages={gallery}
+      />
 
       {(property.description ||
         property.contact_number ||

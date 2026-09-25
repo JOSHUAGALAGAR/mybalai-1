@@ -49,6 +49,11 @@ export default async function NewRoomPage({
           id: t.room_type_id,
           name: t.room_type_name,
         }))}
+        // A new room starts with the property's setting; the landlord can change it here.
+        initial={{
+          require_advance: property.require_advance ? '1' : '0',
+          require_deposit: property.require_deposit ? '1' : '0',
+        }}
         submitLabel="Create room"
         pendingLabel="Creating…"
         cancelHref={`/landlord/properties/${property.property_id}`}

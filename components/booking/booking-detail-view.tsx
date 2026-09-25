@@ -27,6 +27,7 @@ export function BookingDetailView({
   /** Show the tenant "Pay now" button when the booking is payment_pending. */
   onlinePaymentEnabled?: boolean
 }) {
+  const hasUpfront = detail.advanceAmount > 0 || detail.depositAmount > 0
   const rows: Array<[string, string | null]> = [
     ['Property', detail.propertyName],
     ['Room', detail.roomLabel],
@@ -38,7 +39,29 @@ export function BookingDetailView({
         ? `${peso.format(detail.unitPrice)} / ${detail.period}`
         : null,
     ],
-    ['Estimated total', peso.format(detail.totalAmount)],
+    ...(hasUpfront
+      ? ([
+          [
+            'Rent',
+            peso.format(
+              detail.totalAmount - detail.advanceAmount - detail.depositAmount,
+            ),
+          ],
+          detail.advanceAmount > 0
+            ? ['1 month advance', peso.format(detail.advanceAmount)]
+            : ['', null],
+          detail.depositAmount > 0
+            ? [
+                '1 month deposit (refundable)',
+                peso.format(detail.depositAmount),
+              ]
+            : ['', null],
+        ] as Array<[string, string | null]>)
+      : []),
+    [
+      hasUpfront ? 'Total to pay' : 'Estimated total',
+      peso.format(detail.totalAmount),
+    ],
     ['Submitted', new Date(detail.submittedAt).toLocaleDateString()],
     mode.kind === 'manage' ? ['Tenant', detail.tenantName ?? '—'] : ['', null],
   ]

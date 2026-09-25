@@ -58,13 +58,14 @@ export default async function EditPropertyPage({
           property_type_id: s(property.property_type_id),
           monthly_payment_rule: s(property.monthly_payment_rule),
           contact_number: s(property.contact_number),
-          property_image: s(property.property_image),
           latitude: s(property.latitude),
           longitude: s(property.longitude),
           google_place_id: s(property.google_place_id),
           description: s(property.description),
           booking_policy: s(property.booking_policy),
           house_rules: s(property.house_rules),
+          require_advance: property.require_advance ? '1' : '0',
+          require_deposit: property.require_deposit ? '1' : '0',
         }}
         submitLabel="Save changes"
         pendingLabel="Saving…"

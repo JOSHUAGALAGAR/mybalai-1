@@ -4,12 +4,17 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 
 import type { MutationState } from '@/app/(protected)/landlord/properties/actions'
+import { AdvanceDepositFields } from '@/components/property/advance-deposit-fields'
+import { ImagePicker } from '@/components/property/image-picker'
+import { useStagedPhotos } from '@/components/property/use-staged-photos'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { FormField, nativeControlClass } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { Textarea } from '@/components/ui/textarea'
+import type { ImageApi, UploadFile } from '@/lib/images/upload'
+import { MAX_ROOM_IMAGES } from '@/lib/images/rules'
 import { ROOM_STATUSES } from '@/schemas/room'
 
 type Option = { id: number; name: string }
@@ -24,6 +29,8 @@ export function RoomForm({
   submitLabel,
   pendingLabel,
   cancelHref,
+  photoApi,
+  photoUpload,
 }: {
   action: (state: MutationState, formData: FormData) => Promise<MutationState>
   mode: 'create' | 'edit'
@@ -34,11 +41,22 @@ export function RoomForm({
   submitLabel: string
   pendingLabel: string
   cancelHref: string
+  /** Test seams: swap the server calls / the browser→Storage transfer. */
+  photoApi?: ImageApi
+  photoUpload?: UploadFile
 }) {
   const [state, formAction] = useActionState<MutationState, FormData>(
     action,
     undefined,
   )
+  const photos = useStagedPhotos({
+    state,
+    api: photoApi,
+    uploadFile: photoUpload,
+    targetFor: (id) => ({ kind: 'room', propertyId, roomId: id }),
+    nextHref: (id) => `/landlord/properties/${propertyId}/rooms/${id}`,
+  })
+  const saving = photos.savedId !== undefined
   const errs = state?.status === 'error' ? (state.fieldErrors ?? {}) : {}
   const v = { ...initial, ...(state?.status === 'error' ? state.values : {}) }
 
@@ -152,19 +170,59 @@ export function RoomForm({
         </FormField>
       </div>
 
-      <FormField
-        label="Cover image URL"
-        htmlFor="room_image"
-        error={errs.room_image}
-      >
-        <Input
-          id="room_image"
-          name="room_image"
-          type="url"
-          inputMode="url"
-          defaultValue={v.room_image ?? ''}
-        />
-      </FormField>
+      {mode === 'create' ? (
+        <>
+          <input type="hidden" name="image_count" value={photos.files.length} />
+          <ImagePicker
+            label="Photos"
+            files={photos.files}
+            coverIndex={photos.coverIndex}
+            onChange={photos.setPhotos}
+            max={MAX_ROOM_IMAGES}
+            disabled={saving}
+          />
+        </>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          Photos are managed on the room page, under Photos.
+        </p>
+      )}
+      {photos.progress && (
+        <p role="status" className="text-muted-foreground text-sm">
+          Room saved. Uploading photo{' '}
+          {Math.min(photos.progress.done + 1, photos.progress.total)} of{' '}
+          {photos.progress.total}…
+        </p>
+      )}
+      {photos.failure && (
+        <Alert variant="destructive">
+          <AlertDescription className="space-y-2">
+            <p>
+              The room was saved, but the photos did not upload:{' '}
+              {photos.failure}
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" onClick={photos.retry}>
+                Try again
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={photos.skip}
+              >
+                Continue without photos
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <AdvanceDepositFields
+        advance={v.require_advance === '1'}
+        deposit={v.require_deposit === '1'}
+        hint="Charged to the tenant when they book this room, together with the rent."
+      />
 
       <FormField
         label="Description"
@@ -181,7 +239,13 @@ export function RoomForm({
       </FormField>
 
       <div className="flex items-center gap-3 pt-1">
-        <SubmitButton pendingText={pendingLabel}>{submitLabel}</SubmitButton>
+        {saving ? (
+          <Button type="button" size="lg" disabled aria-busy>
+            {photos.failure ? 'Saved' : 'Uploading photos…'}
+          </Button>
+        ) : (
+          <SubmitButton pendingText={pendingLabel}>{submitLabel}</SubmitButton>
+        )}
         <Button asChild variant="outline">
           <Link href={cancelHref}>Cancel</Link>
         </Button>

@@ -65,7 +65,8 @@ export default async function EditRoomPage({
           area_sqm: s(room.area_sqm),
           max_occupants: s(room.max_occupants),
           description: s(room.description),
-          room_image: s(room.room_image),
+          require_advance: room.require_advance ? '1' : '0',
+          require_deposit: room.require_deposit ? '1' : '0',
         }}
         submitLabel="Save changes"
         pendingLabel="Saving…"

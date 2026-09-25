@@ -1,15 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 
 import type { MutationState } from '@/app/(protected)/landlord/properties/actions'
+import { AdvanceDepositFields } from '@/components/property/advance-deposit-fields'
+import { LocationPicker } from '@/components/property/location-picker'
+import { ImagePicker } from '@/components/property/image-picker'
+import { useStagedPhotos } from '@/components/property/use-staged-photos'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { FormField, nativeControlClass } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { Textarea } from '@/components/ui/textarea'
+import type { ImageApi, UploadFile } from '@/lib/images/upload'
+import { MAX_PROPERTY_IMAGES } from '@/lib/images/rules'
+import { parsePhPhone } from '@/lib/phone'
 import { OWNER_PROPERTY_STATUSES } from '@/schemas/property'
 
 type Option = { id: number; name: string }
@@ -23,6 +30,8 @@ export function PropertyForm({
   submitLabel,
   pendingLabel,
   cancelHref,
+  photoApi,
+  photoUpload,
 }: {
   action: (state: MutationState, formData: FormData) => Promise<MutationState>
   mode: 'create' | 'edit'
@@ -32,11 +41,28 @@ export function PropertyForm({
   submitLabel: string
   pendingLabel: string
   cancelHref: string
+  /** Test seams: swap the server calls / the browser→Storage transfer. */
+  photoApi?: ImageApi
+  photoUpload?: UploadFile
 }) {
   const [state, formAction] = useActionState<MutationState, FormData>(
     action,
     undefined,
   )
+  const photos = useStagedPhotos({
+    state,
+    api: photoApi,
+    uploadFile: photoUpload,
+    targetFor: (id) => ({ kind: 'property', propertyId: id }),
+    nextHref: (id) => `/landlord/properties/${id}`,
+  })
+  const saving = photos.savedId !== undefined
+  const [phone, setPhone] = useState(
+    (state?.status === 'error' ? state.values?.contact_number : undefined) ??
+      initial.contact_number ??
+      '',
+  )
+  const [phoneError, setPhoneError] = useState<string | null>(null)
   const errs = state?.status === 'error' ? (state.fieldErrors ?? {}) : {}
   const v = { ...initial, ...(state?.status === 'error' ? state.values : {}) }
 
@@ -71,13 +97,13 @@ export function PropertyForm({
         htmlFor="address"
         required
         error={errs.address}
+        hint="Choose a suggestion to drop the pin, then drag it to the exact spot. Tenants see this location."
       >
-        <Input
-          id="address"
-          name="address"
-          required
-          maxLength={500}
-          defaultValue={v.address ?? ''}
+        <LocationPicker
+          initialAddress={v.address ?? ''}
+          initialLat={v.latitude}
+          initialLng={v.longitude}
+          invalid={Boolean(errs.address)}
         />
       </FormField>
 
@@ -134,13 +160,36 @@ export function PropertyForm({
         <FormField
           label="Contact number"
           htmlFor="contact_number"
-          error={errs.contact_number}
+          error={errs.contact_number ?? (phoneError ? [phoneError] : undefined)}
+          hint="Philippine mobile (0917 123 4567) or landline ((02) 8123 4567)."
         >
           <Input
             id="contact_number"
             name="contact_number"
-            maxLength={40}
-            defaultValue={v.contact_number ?? ''}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            maxLength={30}
+            placeholder="0917 123 4567"
+            value={phone}
+            aria-invalid={
+              Boolean(errs.contact_number ?? phoneError) || undefined
+            }
+            onChange={(e) => {
+              setPhone(e.target.value)
+              setPhoneError(null)
+            }}
+            onBlur={() => {
+              // Check as soon as they leave the field, and tidy a valid number into "+63 917 123 4567".
+              if (phone.trim() === '') return setPhoneError(null)
+              const result = parsePhPhone(phone)
+              if (result.ok) {
+                setPhone(result.display)
+                setPhoneError(null)
+              } else {
+                setPhoneError(result.message)
+              }
+            }}
           />
         </FormField>
         <FormField
@@ -157,51 +206,66 @@ export function PropertyForm({
         </FormField>
       </div>
 
-      <FormField
-        label="Cover image URL"
-        htmlFor="property_image"
-        hint="Paste an image link. File uploads arrive with Supabase Storage."
-        error={errs.property_image}
-      >
-        <Input
-          id="property_image"
-          name="property_image"
-          type="url"
-          inputMode="url"
-          defaultValue={v.property_image ?? ''}
-        />
-      </FormField>
+      {mode === 'create' ? (
+        <>
+          <input type="hidden" name="image_count" value={photos.files.length} />
+          <ImagePicker
+            label="Photos"
+            files={photos.files}
+            coverIndex={photos.coverIndex}
+            onChange={photos.setPhotos}
+            max={MAX_PROPERTY_IMAGES}
+            disabled={saving}
+          />
+        </>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          Photos are managed on the property page, under Photos.
+        </p>
+      )}
+      {photos.progress && (
+        <p role="status" className="text-muted-foreground text-sm">
+          Property saved. Uploading photo{' '}
+          {Math.min(photos.progress.done + 1, photos.progress.total)} of{' '}
+          {photos.progress.total}…
+        </p>
+      )}
+      {photos.failure && (
+        <Alert variant="destructive">
+          <AlertDescription className="space-y-2">
+            <p>
+              The property was saved, but the photos did not upload:{' '}
+              {photos.failure}
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" onClick={photos.retry}>
+                Try again
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={photos.skip}
+              >
+                Continue without photos
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
-      <div className="grid gap-5 sm:grid-cols-3">
-        <FormField label="Latitude" htmlFor="latitude" error={errs.latitude}>
-          <Input
-            id="latitude"
-            name="latitude"
-            inputMode="decimal"
-            defaultValue={v.latitude ?? ''}
-          />
-        </FormField>
-        <FormField label="Longitude" htmlFor="longitude" error={errs.longitude}>
-          <Input
-            id="longitude"
-            name="longitude"
-            inputMode="decimal"
-            defaultValue={v.longitude ?? ''}
-          />
-        </FormField>
-        <FormField
-          label="Google Place ID"
-          htmlFor="google_place_id"
-          error={errs.google_place_id}
-        >
-          <Input
-            id="google_place_id"
-            name="google_place_id"
-            maxLength={255}
-            defaultValue={v.google_place_id ?? ''}
-          />
-        </FormField>
-      </div>
+      <AdvanceDepositFields
+        advance={v.require_advance === '1'}
+        deposit={v.require_deposit === '1'}
+        hint="The starting setting for new rooms in this property. Existing rooms keep their own; you can change it per room."
+      />
+
+      {/* Kept so saving does not erase an existing Google Place ID. */}
+      <input
+        type="hidden"
+        name="google_place_id"
+        value={v.google_place_id ?? ''}
+      />
 
       <FormField
         label="Description"
@@ -244,7 +308,13 @@ export function PropertyForm({
       </FormField>
 
       <div className="flex items-center gap-3 pt-1">
-        <SubmitButton pendingText={pendingLabel}>{submitLabel}</SubmitButton>
+        {saving ? (
+          <Button type="button" size="lg" disabled aria-busy>
+            {photos.failure ? 'Saved' : 'Uploading photos…'}
+          </Button>
+        ) : (
+          <SubmitButton pendingText={pendingLabel}>{submitLabel}</SubmitButton>
+        )}
         <Button asChild variant="outline">
           <Link href={cancelHref}>Cancel</Link>
         </Button>

@@ -11,7 +11,11 @@ import { FormField, nativeControlClass } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { Textarea } from '@/components/ui/textarea'
-import { estimateTotal, nightsBetween } from '@/schemas/booking'
+import {
+  advanceDepositLabel,
+  bookingCharges,
+  nightsBetween,
+} from '@/schemas/booking'
 import type { BookingFormRoom } from '@/services/bookings.service'
 
 const peso = new Intl.NumberFormat('en-PH', {
@@ -46,7 +50,18 @@ export function BookingForm({
   const rate = room?.rates.find((r) => r.period === period)
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
   const estimate =
-    rate && nights > 0 ? estimateTotal(rate.period, rate.price, nights) : null
+    rate && nights > 0
+      ? bookingCharges({
+          period: rate.period,
+          unitPrice: rate.price,
+          nights,
+          requireAdvance: room?.requireAdvance ?? false,
+          requireDeposit: room?.requireDeposit ?? false,
+        })
+      : null
+  const upfront = room
+    ? advanceDepositLabel(room.requireAdvance, room.requireDeposit)
+    : null
 
   if (rooms.length === 0) {
     return (
@@ -163,13 +178,34 @@ export function BookingForm({
         <Textarea id="message" name="message" rows={3} maxLength={2000} />
       </FormField>
 
+      {upfront && (
+        <Alert>
+          <AlertDescription>
+            This room requires <strong>{upfront}</strong>, paid together with
+            your first payment. The deposit is refundable.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {estimate && (
         <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
           <p className="text-muted-foreground">
             {nights} night{nights === 1 ? '' : 's'} · {estimate.units}{' '}
             {rate?.period} unit{estimate.units === 1 ? '' : 's'}
           </p>
-          <p className="mt-1 text-base font-semibold text-foreground">
+          <dl className="mt-2 space-y-1">
+            <Line label="Rent" amount={estimate.rent} />
+            {estimate.advance > 0 && (
+              <Line label="1 month advance" amount={estimate.advance} />
+            )}
+            {estimate.deposit > 0 && (
+              <Line
+                label="1 month deposit (refundable)"
+                amount={estimate.deposit}
+              />
+            )}
+          </dl>
+          <p className="mt-2 border-t border-border pt-2 text-base font-semibold text-foreground">
             Estimated total {peso.format(estimate.total)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -192,5 +228,14 @@ export function BookingForm({
         the landlord reviews it.
       </p>
     </form>
+  )
+}
+
+function Line({ label, amount }: { label: string; amount: number }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd>{peso.format(amount)}</dd>
+    </div>
   )
 }

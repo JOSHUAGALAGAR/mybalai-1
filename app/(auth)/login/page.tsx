@@ -15,6 +15,8 @@ const NOTICES: Record<string, string> = {
   registered: 'Account created. Sign in to continue.',
   reset_done: 'Your password has been updated. Sign in with your new password.',
   oauth: 'Google sign-in did not complete. Please try again.',
+  landlord_google:
+    'Landlord accounts sign in with email and password, not Google.',
   provisioning:
     'Your account is not fully set up yet. Sign in again or contact support.',
   session_expired: 'Your session expired. Please sign in again.',
@@ -33,6 +35,8 @@ export default async function LoginPage({
   else if (first(sp.registered)) notice = NOTICES.registered
   else if (first(sp.reset) === 'done') notice = NOTICES.reset_done
   else if (first(sp.error) === 'oauth') notice = NOTICES.oauth
+  else if (first(sp.error) === 'landlord_google')
+    notice = NOTICES.landlord_google
   else if (first(sp.error) === 'provisioning') notice = NOTICES.provisioning
   else if (first(sp.error) === 'session_expired')
     notice = NOTICES.session_expired

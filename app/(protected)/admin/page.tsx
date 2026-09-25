@@ -14,15 +14,17 @@ import { PageHeader } from '@/components/dashboard/page-header'
 import { Button } from '@/components/ui/button'
 import { requireArea } from '@/lib/auth/dal'
 import { getListingOverview } from '@/services/admin.service'
+import { countPendingVerifications } from '@/services/verification.service'
 import { getSubscriptionOverview } from '@/services/subscriptions.service'
 
 export const metadata: Metadata = { title: 'Admin' }
 
 export default async function AdminOverviewPage() {
   await requireArea('superadmin')
-  const [overview, subs] = await Promise.all([
+  const [overview, subs, pendingIds] = await Promise.all([
     getListingOverview(),
     getSubscriptionOverview(),
+    countPendingVerifications(),
   ])
 
   return (
@@ -101,6 +103,25 @@ export default async function AdminOverviewPage() {
             without an active subscription — they cannot add listings.
           </p>
         )}
+      </section>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-foreground">
+            Tenant ID verification
+          </h2>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/admin/verifications">Review</Link>
+          </Button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatTile
+            label="Waiting for review"
+            value={pendingIds}
+            href="/admin/verifications"
+            highlight={pendingIds > 0}
+          />
+        </div>
       </section>
 
       <section>

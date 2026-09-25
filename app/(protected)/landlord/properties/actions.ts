@@ -16,7 +16,7 @@ export type MutationState =
       fieldErrors?: Record<string, string[]>
       values?: Record<string, string>
     }
-  | { status: 'success'; message: string }
+  | { status: 'success'; message: string; entityId?: number }
   | undefined
 
 function toObject(formData: FormData): Record<string, string> {
@@ -55,6 +55,10 @@ function intField(formData: FormData, name: string): number {
   return value
 }
 
+/** The form sends `image_count` = how many photos the browser is about to upload. */
+const wantsPhotos = (values: Record<string, string>) =>
+  Number(values.image_count) > 0
+
 const propBase = (id: number) => `/landlord/properties/${id}`
 
 /* ------------------------------------------------------------------ *
@@ -73,6 +77,10 @@ export async function createPropertyAction(
     return toErrorState(error, values)
   }
   revalidatePath('/landlord/properties')
+  // Photos are picked in the browser and uploaded after the property exists, so hand back its id.
+  if (wantsPhotos(values)) {
+    return { status: 'success', message: 'Property created.', entityId: newId }
+  }
   redirect(propBase(newId))
 }
 
@@ -131,6 +139,9 @@ export async function createRoomAction(
     return toErrorState(error, values)
   }
   revalidatePath(propBase(propertyId))
+  if (wantsPhotos(values)) {
+    return { status: 'success', message: 'Room created.', entityId: roomId }
+  }
   redirect(`${propBase(propertyId)}/rooms/${roomId}`)
 }
 
