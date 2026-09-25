@@ -12,15 +12,32 @@ import {
   Wallet,
 } from 'lucide-react'
 
+import { LandlordInsights } from '@/components/dashboard/landlord-insights'
 import { ModuleCard } from '@/components/dashboard/module-card'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { requireArea } from '@/lib/auth/dal'
+import {
+  getLandlordDashboard,
+  type LandlordDashboard,
+} from '@/services/landlord-dashboard.service'
 
 export const metadata: Metadata = { title: 'Landlord' }
+
+// The metrics are a convenience layer; if they fail to load the module links
+// below must still render.
+async function loadDashboard(): Promise<LandlordDashboard | null> {
+  try {
+    return await getLandlordDashboard()
+  } catch (error) {
+    console.error('Landlord dashboard metrics failed to load', error)
+    return null
+  }
+}
 
 export default async function LandlordOverviewPage() {
   const user = await requireArea('landlord', 'superadmin')
   const firstName = user.fullName?.split(' ')[0]
+  const dashboard = await loadDashboard()
 
   return (
     <div>
@@ -29,6 +46,11 @@ export default async function LandlordOverviewPage() {
         subtitle="Your properties, bookings, payments, and caretaker team."
       />
 
+      {dashboard && <LandlordInsights data={dashboard} />}
+
+      <h2 className="mb-3 mt-8 text-sm font-medium text-muted-foreground">
+        Manage
+      </h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ModuleCard
           title="Properties"
