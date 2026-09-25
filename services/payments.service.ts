@@ -97,6 +97,60 @@ async function decorate(
 }
 
 /* ------------------------------------------------------------------ *
+ * Summaries (mobile booking / payment screens)
+ * ------------------------------------------------------------------ */
+
+export type PaymentSummary = {
+  paymentId: number
+  bookingId: number | null
+  statusCode: string | null
+  statusName: string | null
+  amount: number
+  currency: string
+  paidAt: string | null
+}
+
+async function summarise(
+  row: paymentsRepo.PaymentRow,
+): Promise<PaymentSummary> {
+  const statuses = await referenceRepo.listPaymentStatuses()
+  const st = statuses.find((s) => s.payment_status_id === row.payment_status_id)
+  return {
+    paymentId: row.payment_id,
+    bookingId: row.booking_id,
+    statusCode: st?.status_code ?? null,
+    statusName: st?.status_name ?? null,
+    amount: Number(row.amount),
+    currency: row.currency,
+    paidAt: row.paid_at,
+  }
+}
+
+/** The tenant's most recent payment for one of their bookings, or null. */
+export async function latestPaymentForMyBooking(
+  bookingId: number,
+): Promise<PaymentSummary | null> {
+  const user = await requireUser()
+  const mine = (await paymentsRepo.listPaymentsByBookings([bookingId])).filter(
+    (p) => p.user_id === user.legacyUserId,
+  )
+  // Newest first (the repository orders by created_at desc).
+  return mine[0] ? summarise(mine[0]) : null
+}
+
+/** One of the caller's own payments. */
+export async function getMyPaymentSummary(
+  paymentId: number,
+): Promise<PaymentSummary> {
+  const user = await requireUser()
+  const payment = await paymentsRepo.getPayment(paymentId)
+  if (!payment || payment.user_id !== user.legacyUserId) {
+    throw new ServiceError('Payment not found.', 'not_found')
+  }
+  return summarise(payment)
+}
+
+/* ------------------------------------------------------------------ *
  * Access resolution
  * ------------------------------------------------------------------ */
 

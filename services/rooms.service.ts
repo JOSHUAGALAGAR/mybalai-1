@@ -4,6 +4,10 @@ import * as bedsRepo from '@/repositories/beds.repository'
 import * as referenceRepo from '@/repositories/reference.repository'
 import * as roomsRepo from '@/repositories/rooms.repository'
 import { isSuperadmin } from '@/lib/permissions/properties'
+import {
+  explainMissingAdvanceColumns,
+  onlyEnabledRequirements,
+} from '@/lib/db-errors'
 import { parseOrThrow } from '@/services/errors'
 import {
   requireManageableProperty,
@@ -13,6 +17,7 @@ import {
 import * as subscriptions from '@/services/subscriptions.service'
 import {
   DEFAULT_ROOM_STATUS,
+  roomRequirementsSchema,
   roomFormSchema,
   type RoomStatus,
 } from '@/schemas/room'
@@ -65,7 +70,14 @@ function toWriteValues(data: ReturnType<typeof roomFormSchema.parse>) {
     area_sqm: data.area_sqm ?? null,
     max_occupants: data.max_occupants,
     description: data.description ?? null,
-    room_image: data.room_image ?? null,
+    ...(data.require_advance !== undefined && {
+      require_advance: data.require_advance,
+    }),
+    ...(data.require_deposit !== undefined && {
+      require_deposit: data.require_deposit,
+    }),
+    // Photos are managed in the gallery, which keeps the cover here; only touch it when a URL is sent.
+    ...(data.room_image !== undefined && { room_image: data.room_image }),
   }
 }
 
@@ -84,11 +96,29 @@ export async function createRoom(
     data.status_code ?? DEFAULT_ROOM_STATUS,
   )
 
-  return roomsRepo.insertRoom({
-    ...toWriteValues(data),
-    property_id: propertyId,
-    status_id: statusId,
-  })
+  return roomsRepo
+    .insertRoom({
+      ...onlyEnabledRequirements(toWriteValues(data)),
+      property_id: propertyId,
+      status_id: statusId,
+    })
+    .catch(explainMissingAdvanceColumns)
+}
+
+/** Change only the advance / deposit switches of a room (nothing else about it is touched). */
+export async function updateRoomRequirements(
+  propertyId: number,
+  roomId: number,
+  input: unknown,
+): Promise<roomsRepo.RoomRow> {
+  await requireManageableRoom(propertyId, roomId)
+  const data = parseOrThrow(roomRequirementsSchema, input)
+  return roomsRepo
+    .updateRoom(roomId, {
+      require_advance: data.require_advance,
+      require_deposit: data.require_deposit,
+    })
+    .catch(explainMissingAdvanceColumns)
 }
 
 export async function updateRoom(
@@ -107,7 +137,9 @@ export async function updateRoom(
     )
   }
 
-  return roomsRepo.updateRoom(roomId, values)
+  return roomsRepo
+    .updateRoom(roomId, values)
+    .catch(explainMissingAdvanceColumns)
 }
 
 export async function deleteRoom(

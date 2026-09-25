@@ -11,6 +11,7 @@ import {
   ScrollText,
   Search,
   Settings,
+  ShieldCheck,
   Star,
   Tags,
   Users,
@@ -252,6 +253,12 @@ const SUPERADMIN_NAV: NavSection[] = [
         href: '/admin/plans',
         label: 'Plans',
         icon: Tags,
+        match: 'startsWith',
+      },
+      {
+        href: '/admin/verifications',
+        label: 'ID verification',
+        icon: ShieldCheck,
         match: 'startsWith',
       },
       {

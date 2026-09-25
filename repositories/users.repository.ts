@@ -42,6 +42,19 @@ export async function getAccountById(
   return data
 }
 
+/** Accounts for a set of ids (tenant management shows name + contact). */
+export async function listAccountsByIds(
+  legacyUserIds: number[],
+): Promise<UserAccountRow[]> {
+  if (legacyUserIds.length === 0) return []
+  const { data, error } = await createAdminClient()
+    .from('user_accounts')
+    .select('*')
+    .in('legacy_user_id', [...new Set(legacyUserIds)])
+  if (error) throw new RepositoryError('Failed to load accounts.', error)
+  return data ?? []
+}
+
 export async function getRoleCodes(legacyUserId: number): Promise<string[]> {
   const admin = createAdminClient()
   const { data: links, error: linkErr } = await admin

@@ -73,3 +73,55 @@ export function estimateTotal(
         : Math.max(1, Math.ceil(nights / 30))
   return { units, total: Math.round(unitPrice * units * 100) / 100 }
 }
+
+/** One month of rent, using the same billing rule as the booking itself (30 nights = 1 month). */
+export function monthOfRent(period: BookingPeriod, unitPrice: number): number {
+  return estimateTotal(period, unitPrice, 30).total
+}
+
+/**
+ * Everything a tenant pays up front: the rent for the stay, plus — when the room requires them —
+ * 1 month advance and a 1 month security deposit (each one month of rent). `total` is what is
+ * saved as the booking amount and charged online.
+ */
+export function bookingCharges(input: {
+  period: BookingPeriod
+  unitPrice: number
+  nights: number
+  requireAdvance: boolean
+  requireDeposit: boolean
+}): {
+  units: number
+  rent: number
+  advance: number
+  deposit: number
+  total: number
+} {
+  const { units, total: rent } = estimateTotal(
+    input.period,
+    input.unitPrice,
+    input.nights,
+  )
+  const month = monthOfRent(input.period, input.unitPrice)
+  const advance = input.requireAdvance ? month : 0
+  const deposit = input.requireDeposit ? month : 0
+  return {
+    units,
+    rent,
+    advance,
+    deposit,
+    total: Math.round((rent + advance + deposit) * 100) / 100,
+  }
+}
+
+/** "1 month advance + 1 month deposit", or null when the room asks for neither. */
+export function advanceDepositLabel(
+  requireAdvance: boolean,
+  requireDeposit: boolean,
+): string | null {
+  const parts = [
+    requireAdvance && '1 month advance',
+    requireDeposit && '1 month deposit',
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' + ') : null
+}

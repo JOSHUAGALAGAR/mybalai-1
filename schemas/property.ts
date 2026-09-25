@@ -3,6 +3,8 @@ import { z } from 'zod'
 import {
   blankToUndefined,
   optionalNumber,
+  optionalFlag,
+  optionalPhPhone,
   optionalText,
 } from '@/schemas/_helpers'
 
@@ -41,7 +43,7 @@ export const propertyFormSchema = z.object({
   booking_policy: optionalText(2000),
   description: optionalText(4000),
   house_rules: optionalText(4000),
-  contact_number: optionalText(40),
+  contact_number: optionalPhPhone,
   property_image: z.preprocess(
     blankToUndefined,
     z.url({ error: 'Enter a valid image URL.' }).max(1000).optional(),
@@ -57,6 +59,8 @@ export const propertyFormSchema = z.object({
     message: 'Longitude must be between -180 and 180.',
   }),
   google_place_id: optionalText(255),
+  require_advance: optionalFlag,
+  require_deposit: optionalFlag,
 })
 
 export type PropertyFormInput = z.infer<typeof propertyFormSchema>

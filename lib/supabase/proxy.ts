@@ -8,13 +8,27 @@ import type { Database } from '@/types/database'
  * Paths reachable without a session: the public marketing site (Phase 1) and
  * the auth routes (Phase 2). Everything else requires authentication.
  */
-const PUBLIC_EXACT_PATHS = new Set(['/', '/forgot-password'])
+const PUBLIC_EXACT_PATHS = new Set([
+  '/',
+  '/forgot-password',
+  // Legal pages are linked from sign-up, the mobile app and Google's consent screen.
+  '/terms',
+  '/privacy',
+  // How to delete your account: linked from Google Play's Data safety form.
+  '/delete-account',
+  // PayMongo returns the tenant's phone browser here; it only redirects into the app.
+  '/pay/return',
+])
 const PUBLIC_PATH_PREFIXES = [
   '/login',
   '/signup',
   '/auth',
   // Third-party webhooks authenticate themselves (signature), not via a session.
   '/api/paymongo',
+  // The mobile API authenticates with a bearer token (no cookie session), so
+  // the cookie gate must not redirect it; every handler checks the token itself
+  // (see `lib/api/mobile.ts`).
+  '/api/mobile',
 ]
 
 function isPublicPath(pathname: string): boolean {

@@ -11,6 +11,11 @@ import * as referenceRepo from '@/repositories/reference.repository'
 import * as roomsRepo from '@/repositories/rooms.repository'
 import * as bedsRepo from '@/repositories/beds.repository'
 import * as ratesRepo from '@/repositories/rental-rates.repository'
+import { parsePhPhone } from '@/lib/phone'
+import {
+  explainMissingAdvanceColumns,
+  onlyEnabledRequirements,
+} from '@/lib/db-errors'
 import { ServiceError, parseOrThrow } from '@/services/errors'
 import { requireManageableProperty } from '@/services/property-access'
 import * as subscriptions from '@/services/subscriptions.service'
@@ -64,7 +69,17 @@ function toWriteValues(data: ReturnType<typeof propertyFormSchema.parse>) {
     description: data.description ?? null,
     house_rules: data.house_rules ?? null,
     contact_number: data.contact_number ?? null,
-    property_image: data.property_image ?? null,
+    // Photos are managed in the gallery, which keeps the cover here; only touch it when a URL is sent.
+    ...(data.property_image !== undefined && {
+      property_image: data.property_image,
+    }),
+    // Only written when the form/API states them, so other callers never reset them.
+    ...(data.require_advance !== undefined && {
+      require_advance: data.require_advance,
+    }),
+    ...(data.require_deposit !== undefined && {
+      require_deposit: data.require_deposit,
+    }),
     latitude: data.latitude ?? null,
     longitude: data.longitude ?? null,
     google_place_id: data.google_place_id ?? null,
@@ -94,22 +109,44 @@ export async function createProperty(
     DEFAULT_NEW_PROPERTY_STATUS,
   )
 
-  return propertiesRepo.insertProperty({
-    ...toWriteValues(data),
-    property_owner: user.legacyUserId,
-    status_id: statusId,
-  })
+  // A new property starts with both switches off, so only "on" needs writing (this also keeps
+  // creating a plain property working on a database that has not had migration 0014 yet).
+  return propertiesRepo
+    .insertProperty({
+      ...onlyEnabledRequirements(toWriteValues(data)),
+      property_owner: user.legacyUserId,
+      status_id: statusId,
+    })
+    .catch(explainMissingAdvanceColumns)
 }
 
 export async function updateProperty(
   propertyId: number,
   input: unknown,
 ): Promise<propertiesRepo.PropertyRow> {
-  await requireManageableProperty(propertyId)
-  const data = parseOrThrow(propertyFormSchema, input)
+  const { property } = await requireManageableProperty(propertyId)
+
+  // A contact number saved before phone checking existed may not be valid. If the landlord did
+  // not change it, keep it as it is instead of blocking every other edit; a NEW or changed
+  // number is always checked.
+  const stored = property.contact_number?.trim() ?? ''
+  const submitted =
+    typeof input === 'object' && input !== null
+      ? String((input as Record<string, unknown>).contact_number ?? '').trim()
+      : ''
+  const keepLegacyNumber =
+    stored !== '' && submitted === stored && !parsePhPhone(stored).ok
+
+  const data = parseOrThrow(
+    propertyFormSchema,
+    keepLegacyNumber
+      ? { ...(input as object), contact_number: undefined }
+      : input,
+  )
 
   const values: TablesUpdate<'properties'> = {
     ...toWriteValues(data),
+    ...(keepLegacyNumber && { contact_number: stored }),
   }
 
   if (data.status_code) {
@@ -119,7 +156,9 @@ export async function updateProperty(
     )
   }
 
-  return propertiesRepo.updateProperty(propertyId, values)
+  return propertiesRepo
+    .updateProperty(propertyId, values)
+    .catch(explainMissingAdvanceColumns)
 }
 
 export async function archiveProperty(propertyId: number): Promise<void> {

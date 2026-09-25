@@ -123,6 +123,8 @@ export async function callCreateBooking(args: {
   p_price: number
   p_rate_valid_from: string | null
   p_rate_valid_until: string | null
+  p_advance?: number
+  p_deposit?: number
 }): Promise<number> {
   const { data, error } = await createAdminClient().rpc('create_booking', args)
   if (error) throw new RepositoryError(mapDbError(error), error)
@@ -149,9 +151,20 @@ export async function callSetBookingStatus(args: {
  * Pass a booking id to sweep just one, or omit to sweep all overdue. Safe to
  * call on every read — it is one indexed UPDATE loop.
  */
+// A full sweep is also run on a schedule where pg_cron is available, so paying a
+// database round-trip on EVERY list read is wasteful. At most one per interval per
+// server instance; a single-booking sweep (detail view) is never skipped.
+const SWEEP_MIN_INTERVAL_MS = 30_000
+let lastFullSweepAt = 0
+
 export async function callExpireOverdueBookings(
   bookingId?: number,
 ): Promise<number> {
+  if (bookingId == null) {
+    const now = Date.now()
+    if (now - lastFullSweepAt < SWEEP_MIN_INTERVAL_MS) return 0
+    lastFullSweepAt = now
+  }
   const { data, error } = await createAdminClient().rpc(
     'expire_overdue_bookings',
     bookingId != null ? { p_booking: bookingId } : {},

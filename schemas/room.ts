@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   blankToUndefined,
   optionalNumber,
+  optionalFlag,
   optionalText,
 } from '@/schemas/_helpers'
 
@@ -42,6 +43,8 @@ export const roomFormSchema = z.object({
     .max(50, { error: 'Max occupants is too high.' })
     .default(1),
   description: optionalText(4000),
+  require_advance: optionalFlag,
+  require_deposit: optionalFlag,
   room_image: z.preprocess(
     blankToUndefined,
     z.url({ error: 'Enter a valid image URL.' }).max(1000).optional(),
@@ -49,3 +52,9 @@ export const roomFormSchema = z.object({
 })
 
 export type RoomFormInput = z.infer<typeof roomFormSchema>
+
+/** Just the two switches — used to flip them without resending the whole room. */
+export const roomRequirementsSchema = z.object({
+  require_advance: z.boolean({ error: 'Choose yes or no.' }),
+  require_deposit: z.boolean({ error: 'Choose yes or no.' }),
+})

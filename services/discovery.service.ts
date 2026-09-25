@@ -3,6 +3,7 @@ import 'server-only'
 import { requireUser } from '@/lib/auth/dal'
 import * as discoveryRepo from '@/repositories/discovery.repository'
 import * as referenceRepo from '@/repositories/reference.repository'
+import * as imageService from '@/services/property-images.service'
 import { ServiceError } from '@/services/errors'
 import { PAGE_SIZE, type DiscoveryQuery } from '@/schemas/discovery'
 
@@ -164,17 +165,25 @@ export async function searchProperties(
   return { items, total, page, pageCount }
 }
 
+/** Photos are a nice-to-have on public pages: never let a gallery problem hide the listing. */
+async function galleryOrEmpty<T>(load: Promise<T>, empty: T): Promise<T> {
+  try {
+    return await load
+  } catch (error) {
+    console.error('[discovery] photo gallery unavailable:', error)
+    return empty
+  }
+}
+
 export type DiscoveryDetail = Awaited<ReturnType<typeof getDiscoveryDetail>>
 
 export async function getDiscoveryDetail(propertyId: number) {
   await requireUser()
 
-  const property = await discoveryRepo.getVisibleProperty(propertyId)
-  if (!property) {
-    throw new ServiceError('Property not found.', 'not_found')
-  }
-
+  // One round-trip to the database costs ~300 ms here, so everything that does
+  // not depend on another result is started together (was 4 sequential rounds).
   const [
+    property,
     types,
     amenityCatalog,
     amenityLinks,
@@ -185,6 +194,7 @@ export async function getDiscoveryDetail(propertyId: number) {
     roomStatuses,
     bedStatuses,
   ] = await Promise.all([
+    discoveryRepo.getVisibleProperty(propertyId),
     referenceRepo.listPropertyTypes(),
     referenceRepo.listAmenities(),
     discoveryRepo.listAmenityLinks([propertyId]),
@@ -195,11 +205,25 @@ export async function getDiscoveryDetail(propertyId: number) {
     referenceRepo.listRoomStatuses(),
     referenceRepo.listBedStatuses(),
   ])
+  if (!property) {
+    throw new ServiceError('Property not found.', 'not_found')
+  }
 
-  const beds = await discoveryRepo.listBedsForRooms(rooms.map((r) => r.room_id))
-  const reviewerName = await discoveryRepo.reviewerNames(
-    ratings.map((r) => r.user_id),
-  )
+  const [beds, reviewerName, propertyPhotos, roomPhotos] = await Promise.all([
+    discoveryRepo.listBedsForRooms(rooms.map((r) => r.room_id)),
+    discoveryRepo.reviewerNames(ratings.map((r) => r.user_id)),
+    galleryOrEmpty(
+      imageService.publicGallery({ kind: 'property', propertyId }),
+      [] as string[],
+    ),
+    galleryOrEmpty(
+      imageService.publicGalleries(
+        'room',
+        rooms.map((r) => r.room_id),
+      ),
+      new Map<number, string[]>(),
+    ),
+  ])
 
   const selectedAmenityIds = new Set(amenityLinks.map((l) => l.amenity_id))
   const amenityGroups = new Map<string, string[]>()
@@ -259,6 +283,11 @@ export async function getDiscoveryDetail(propertyId: number) {
       maxOccupants: room.max_occupants,
       floor: room.floor,
       areaSqm: room.area_sqm,
+      photos:
+        roomPhotos.get(room.room_id) ??
+        (room.room_image ? [room.room_image] : []),
+      requireAdvance: room.require_advance === true,
+      requireDeposit: room.require_deposit === true,
       bedTotal: roomBeds.length,
       bedAvailable: roomBeds.filter((b) => b.status_id === availableBedStatusId)
         .length,
@@ -297,6 +326,13 @@ export async function getDiscoveryDetail(propertyId: number) {
       category,
       names: names.sort(),
     })),
+    // Gallery first; fall back to the single legacy cover for listings created before galleries.
+    photos:
+      propertyPhotos.length > 0
+        ? propertyPhotos
+        : property.property_image
+          ? [property.property_image]
+          : [],
     rooms: roomViews,
     fromPrice: summariseRates(rates),
     ratings: {

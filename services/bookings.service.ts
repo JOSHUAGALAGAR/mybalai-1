@@ -14,8 +14,8 @@ import { ServiceError, parseOrThrow } from '@/services/errors'
 import { requireOperableProperty } from '@/services/property-access'
 import {
   bookingActionSchema,
+  bookingCharges,
   createBookingSchema,
-  estimateTotal,
   nightsBetween,
   type BookingPeriod,
   type BookingTransition,
@@ -57,6 +57,21 @@ async function blockingStatusIds(): Promise<number[]> {
     .map((s) => s.booking_status_id)
 }
 
+/**
+ * Run the overdue-booking sweep alongside a read (they used to run back to back,
+ * ~300 ms each) and re-read only if the sweep actually expired something.
+ */
+async function readAfterSweep<T>(
+  read: () => Promise<T>,
+  bookingId?: number,
+): Promise<T> {
+  const [swept, result] = await Promise.all([
+    bookingsRepo.callExpireOverdueBookings(bookingId),
+    read(),
+  ])
+  return swept > 0 ? read() : result
+}
+
 export type BookingListItem = {
   bookingId: number
   propertyId: number
@@ -71,6 +86,8 @@ export type BookingListItem = {
   currency: string
   submittedAt: string
   tenantName?: string | null
+  /** Only set for manager views (`withTenant`). */
+  tenantId?: number
 }
 
 async function decorate(
@@ -119,6 +136,7 @@ async function decorate(
       tenantName: options.withTenant
         ? (tenantNames.get(r.user_id) ?? null)
         : undefined,
+      tenantId: options.withTenant ? r.user_id : undefined,
     }
   })
 }
@@ -131,6 +149,9 @@ export type BookingFormRoom = {
   roomId: number
   label: string
   beds: { bedId: number; bedNumber: string }[]
+  /** The landlord asks for 1 month of rent in advance / a 1 month refundable deposit. */
+  requireAdvance: boolean
+  requireDeposit: boolean
   rates: {
     period: BookingPeriod
     price: number
@@ -143,12 +164,14 @@ export type BookingFormRoom = {
 export async function getBookingFormContext(propertyId: number) {
   await requireUser()
 
-  const property = await discoveryRepo.getVisibleProperty(propertyId)
+  // Independent reads, started together (was four sequential round-trips).
+  const [property, rooms, beds, rates] = await Promise.all([
+    discoveryRepo.getVisibleProperty(propertyId),
+    roomsRepo.listRoomsByProperty(propertyId),
+    bedsRepo.listBedsByProperty(propertyId),
+    discoveryRepo.listActiveRates([propertyId]),
+  ])
   if (!property) throw new ServiceError('Property not found.', 'not_found')
-
-  const rooms = await roomsRepo.listRoomsByProperty(propertyId)
-  const beds = await bedsRepo.listBedsByProperty(propertyId)
-  const rates = await discoveryRepo.listActiveRates([propertyId])
 
   const bedsByRoom = new Map<number, typeof beds>()
   for (const b of beds) {
@@ -167,6 +190,8 @@ export async function getBookingFormContext(propertyId: number) {
       bedId: b.bed_id,
       bedNumber: b.bed_number,
     })),
+    requireAdvance: room.require_advance === true,
+    requireDeposit: room.require_deposit === true,
     rates: rates
       .filter((r) => r.room_id === room.room_id)
       .map((r) => ({
@@ -262,7 +287,16 @@ export async function createBooking(
   }
 
   const nights = nightsBetween(data.check_in, data.check_out)
-  const { total } = estimateTotal(data.period, Number(rate.price), nights)
+  // What the tenant pays up front: rent + (if the room requires them) 1 month advance and
+  // 1 month deposit. The amounts are saved on the booking, so later changes to the room's
+  // settings never alter it.
+  const charges = bookingCharges({
+    period: data.period,
+    unitPrice: Number(rate.price),
+    nights,
+    requireAdvance: room.require_advance === true,
+    requireDeposit: room.require_deposit === true,
+  })
 
   return bookingsRepo.callCreateBooking({
     p_user: user.legacyUserId,
@@ -273,18 +307,23 @@ export async function createBooking(
     p_check_in: data.check_in,
     p_check_out: data.check_out,
     p_message: data.message ?? null,
-    p_total: total,
+    p_total: charges.total,
     p_period: data.period,
     p_price: Number(rate.price),
     p_rate_valid_from: rate.valid_from,
     p_rate_valid_until: rate.valid_until,
+    // Only sent when used, so rooms without them keep working before migration 0014 is applied.
+    ...(charges.advance > 0 && { p_advance: charges.advance }),
+    ...(charges.deposit > 0 && { p_deposit: charges.deposit }),
   })
 }
 
 export async function listMyBookings(): Promise<BookingListItem[]> {
   const user = await requireUser()
-  await bookingsRepo.callExpireOverdueBookings()
-  return decorate(await bookingsRepo.listBookingsByUser(user.legacyUserId))
+  const rows = await readAfterSweep(() =>
+    bookingsRepo.listBookingsByUser(user.legacyUserId),
+  )
+  return decorate(rows)
 }
 
 export type BookingDetail = BookingListItem & {
@@ -292,6 +331,9 @@ export type BookingDetail = BookingListItem & {
   landlordResponse: string | null
   period: string | null
   unitPrice: number | null
+  /** Part of `totalAmount`: 1 month advance and refundable 1 month deposit (0 if none). */
+  advanceAmount: number
+  depositAmount: number
   history: {
     at: string
     toName: string
@@ -330,6 +372,8 @@ async function buildDetail(
     landlordResponse: row.landlord_response,
     period: snapshot?.period ?? null,
     unitPrice: snapshot ? Number(snapshot.price) : null,
+    advanceAmount: Number(row.advance_amount ?? 0),
+    depositAmount: Number(row.deposit_amount ?? 0),
     history: history.map((h) => ({
       at: h.created_at,
       toName: nameById.get(h.to_status_id) ?? 'Updated',
@@ -349,8 +393,10 @@ async function buildDetail(
 
 export async function getMyBooking(bookingId: number): Promise<BookingDetail> {
   const user = await requireUser()
-  await bookingsRepo.callExpireOverdueBookings(bookingId)
-  const row = await bookingsRepo.getBooking(bookingId)
+  const row = await readAfterSweep(
+    () => bookingsRepo.getBooking(bookingId),
+    bookingId,
+  )
   if (!row || (row.user_id !== user.legacyUserId && !isSuperadmin(user))) {
     throw new ServiceError('Booking not found.', 'not_found')
   }

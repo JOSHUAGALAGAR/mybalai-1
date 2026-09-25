@@ -78,15 +78,34 @@ function amountMatches(
  * Tenant — pay for a booking (spec §3–§5)
  * ------------------------------------------------------------------ */
 
+/** Where PayMongo should send the browser after checkout; built once the payment id is known. */
+export type CheckoutUrls = (ids: { paymentId: number; bookingId: number }) => {
+  successUrl: string
+  cancelUrl: string
+}
+
+export type StartedCheckout = {
+  checkoutUrl: string
+  paymentId: number
+  bookingId: number
+}
+
 /**
  * Start a hosted checkout for a booking that is `payment_pending`, or retry an
  * existing pending payment. The amount is ALWAYS taken from the MyBalai record,
  * never the client.
+ *
+ * - `urls` overrides the return addresses (the mobile app returns via the bridge page);
+ *   the website leaves it unset and gets its own pages.
+ * - `reusePending` continues an unfinished payment for the booking instead of creating another
+ *   one every time the tenant taps "Pay" (the website creates a new record per click).
  */
-export async function startPaymentCheckout(input: {
+export async function startBookingCheckout(input: {
   bookingId?: number
   paymentId?: number
-}): Promise<string> {
+  reusePending?: boolean
+  urls?: CheckoutUrls
+}): Promise<StartedCheckout> {
   ensureConfigured()
   const user = await requireUser()
   const mine = (ownerId: number) =>
@@ -139,31 +158,45 @@ export async function startPaymentCheckout(input: {
     amountPhp = Number(booking.total_amount) // authoritative amount (§12)
     expiresAt = booking.payment_due_at
 
-    paymentId = await paymentsRepo.callCreatePayment({
-      p_user: booking.user_id,
-      p_created_by: booking.user_id,
-      p_created_by_role: 'tenant',
-      p_booking: bookingId,
-      p_amount: amountPhp,
-      p_method: null,
-      p_reference: null,
-      p_paid_at: null,
-      p_note: 'Online payment (PayMongo).',
-    })
-    if (expiresAt) await paymongoRepo.setPaymentExpiry(paymentId, expiresAt)
+    const unfinished = input.reusePending
+      ? await findPendingPayment(booking.booking_id, booking.user_id)
+      : null
+
+    paymentId = unfinished
+      ? unfinished.payment_id
+      : await paymentsRepo.callCreatePayment({
+          p_user: booking.user_id,
+          p_created_by: booking.user_id,
+          p_created_by_role: 'tenant',
+          p_booking: bookingId,
+          p_amount: amountPhp,
+          p_method: null,
+          p_reference: null,
+          p_paid_at: null,
+          p_note: 'Online payment (PayMongo).',
+        })
+    if (expiresAt && !unfinished) {
+      await paymongoRepo.setPaymentExpiry(paymentId, expiresAt)
+    }
   } else {
     throw new ServiceError('Nothing to pay for.', 'validation')
   }
 
   const origin = siteOrigin()
+  const { successUrl, cancelUrl } = input.urls
+    ? input.urls({ paymentId, bookingId })
+    : {
+        successUrl: `${origin}/payments/${paymentId}?paid=1`,
+        cancelUrl: `${origin}/bookings/${bookingId}`,
+      }
   const session = await pmCall('start the checkout', () =>
     createCheckoutSession({
       amountPhp,
       name: `MyBalai booking payment #${paymentId}`,
       description: `Booking #${bookingId} payment`,
       referenceNumber: `PAY-${paymentId}`,
-      successUrl: `${origin}/payments/${paymentId}?paid=1`,
-      cancelUrl: `${origin}/bookings/${bookingId}`,
+      successUrl,
+      cancelUrl,
       metadata: {
         kind: 'booking_payment',
         payment_id: String(paymentId),
@@ -174,7 +207,31 @@ export async function startPaymentCheckout(input: {
 
   // The return page reconciles by payment id against the stored session.
   await paymongoRepo.attachSessionToPayment(paymentId, session.id)
-  return session.checkoutUrl
+  return { checkoutUrl: session.checkoutUrl, paymentId, bookingId }
+}
+
+/** Website entry point: just the URL to redirect the browser to. */
+export async function startPaymentCheckout(input: {
+  bookingId?: number
+  paymentId?: number
+}): Promise<string> {
+  return (await startBookingCheckout(input)).checkoutUrl
+}
+
+/** The tenant's unfinished (`pending`) payment for a booking, if any. */
+async function findPendingPayment(bookingId: number, userId: number) {
+  const [payments, statuses] = await Promise.all([
+    paymentsRepo.listPaymentsByBookings([bookingId]),
+    referenceRepo.listPaymentStatuses(),
+  ])
+  const pendingId = statuses.find(
+    (s) => s.status_code === 'pending',
+  )?.payment_status_id
+  return (
+    payments.find(
+      (p) => p.user_id === userId && p.payment_status_id === pendingId,
+    ) ?? null
+  )
 }
 
 /* ------------------------------------------------------------------ *

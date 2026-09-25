@@ -1,7 +1,10 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { RepositoryError } from '@/repositories/reference.repository'
+import {
+  RepositoryError,
+  listPropertyStatuses,
+} from '@/repositories/reference.repository'
 import type { Tables } from '@/types/database'
 
 export type PropertyRow = Tables<'properties'>
@@ -10,6 +13,14 @@ export type BedRow = Tables<'beds'>
 export type RateRow = Tables<'rental_rates'>
 export type RatingRow = Tables<'property_ratings'>
 
+/** id of the `active` property status (cached — it never changes at runtime). */
+async function activeStatusId(): Promise<number | null> {
+  const statuses = await listPropertyStatuses()
+  return (
+    statuses.find((s) => s.status_code === 'active')?.property_status_id ?? null
+  )
+}
+
 /** Active, non-deleted properties, optionally name/address filtered by `q`. */
 export async function listVisibleProperties(options: {
   q?: string
@@ -17,20 +28,14 @@ export async function listVisibleProperties(options: {
 }): Promise<PropertyRow[]> {
   const admin = createAdminClient()
 
-  const { data: statusRow, error: statusErr } = await admin
-    .from('property_statuses')
-    .select('property_status_id')
-    .eq('status_code', 'active')
-    .maybeSingle()
-  if (statusErr)
-    throw new RepositoryError('Failed to resolve status.', statusErr)
-  if (!statusRow) return []
+  const activeId = await activeStatusId()
+  if (activeId === null) return []
 
   let query = admin
     .from('properties')
     .select('*')
     .is('deleted_at', null)
-    .eq('status_id', statusRow.property_status_id)
+    .eq('status_id', activeId)
 
   if (options.typeId) query = query.eq('property_type_id', options.typeId)
   if (options.q) {
@@ -47,21 +52,18 @@ export async function getVisibleProperty(
   propertyId: number,
 ): Promise<PropertyRow | null> {
   const admin = createAdminClient()
-  const { data: statusRow } = await admin
-    .from('property_statuses')
-    .select('property_status_id')
-    .eq('status_code', 'active')
-    .maybeSingle()
-
-  const { data, error } = await admin
-    .from('properties')
-    .select('*')
-    .eq('property_id', propertyId)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const [activeId, { data, error }] = await Promise.all([
+    activeStatusId(),
+    admin
+      .from('properties')
+      .select('*')
+      .eq('property_id', propertyId)
+      .is('deleted_at', null)
+      .maybeSingle(),
+  ])
   if (error) throw new RepositoryError('Failed to load property.', error)
   if (!data) return null
-  if (statusRow && data.status_id !== statusRow.property_status_id) return null
+  if (activeId !== null && data.status_id !== activeId) return null
   return data
 }
 
