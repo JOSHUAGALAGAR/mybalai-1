@@ -33,6 +33,9 @@ app work against a fresh copy of the baseline schema.
 | `0010_subscriptions.sql` | `subscription_plans` (four caps + `is_active`, seeds a Free plan) + `landlord_subscriptions` (one per landlord, status/dates). RLS on, no policy. | 11 | `0001`, `0004` |
 | `0011_paymongo.sql` | `subscription_plans.price` + `billing_interval_days`; `payments` PayMongo link columns; `subscription_orders` + `paymongo_events` (RLS on, no policy). Optional — inert without PayMongo keys. | 11 | `0007`, `0010` |
 | `0012_booking_payment_flow.sql` | `payment_pending` / `expired` booking statuses, `failed` / `expired` payment statuses; `properties.payment_deadline_minutes`, `bookings.payment_due_at`, `payments.expires_at`; rewrites `set_booking_status`; adds `settle_booking_payment` / `fail_booking_payment` / `expire_overdue_bookings` (service_role). Final block schedules a `pg_cron` sweeper — **enable `pg_cron`** in Dashboard → Database → Extensions if the NOTICE says it is missing, then re-run that block. | 11 | `0006`, `0007`, `0011` |
+| `0013_property_images.sql` | Extends the baseline `property_images` / `room_images` tables (id sequences, `room_images` cover/type/size columns, one cover each) and creates the public 5 MB `property-images` Storage bucket. Uploads use server-issued signed URLs, so no Storage policy is needed. | 12 | `0004` |
+| `0014_advance_and_deposit.sql` | Optional "1 month advance" / "1 month deposit" per property (default for its rooms) and per room; bookings snapshot `advance_amount` / `deposit_amount` (included in `total_amount`); `create_booking()` gains optional `p_advance` / `p_deposit`. | 13 | `0006` |
+| `0015_profile_photos_and_id_verification.sql` | Public `profile-images` bucket; PRIVATE `id-documents` bucket; `identity_verifications` (tenant ID front/back, pending/approved/rejected, admin review); `user_accounts.id_verified_at` for the Verified badge. | 14 | `0004` |
 
 ## Verify after applying
 

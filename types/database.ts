@@ -55,6 +55,7 @@ export interface Database {
           phone: string | null
           address: string | null
           avatar_url: string | null
+          id_verified_at: string | null
           is_active: boolean
           last_login_at: string | null
         } & Timestamps
@@ -67,12 +68,43 @@ export interface Database {
           phone?: string | null
           address?: string | null
           avatar_url?: string | null
+          id_verified_at?: string | null
           is_active?: boolean
           last_login_at?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['user_accounts']['Insert']>
+        Relationships: []
+      }
+      identity_verifications: {
+        Row: {
+          verification_id: number
+          user_id: number
+          id_type: string
+          front_path: string
+          back_path: string
+          status: string
+          reject_reason: string | null
+          submitted_at: string
+          reviewed_by: number | null
+          reviewed_at: string | null
+        }
+        Insert: {
+          verification_id?: number
+          user_id: number
+          id_type: string
+          front_path: string
+          back_path: string
+          status?: string
+          reject_reason?: string | null
+          submitted_at?: string
+          reviewed_by?: number | null
+          reviewed_at?: string | null
+        }
+        Update: Partial<
+          Database['public']['Tables']['identity_verifications']['Insert']
+        >
         Relationships: []
       }
       user_roles: {
@@ -230,6 +262,8 @@ export interface Database {
           house_rules: string | null
           contact_number: string | null
           property_image: string | null
+          require_advance: boolean
+          require_deposit: boolean
           payment_deadline_minutes: number
           is_verified: boolean
           is_featured: boolean
@@ -253,6 +287,8 @@ export interface Database {
           house_rules?: string | null
           contact_number?: string | null
           property_image?: string | null
+          require_advance?: boolean
+          require_deposit?: boolean
           payment_deadline_minutes?: number
           is_verified?: boolean
           is_featured?: boolean
@@ -289,6 +325,32 @@ export interface Database {
         Update: Partial<
           Database['public']['Tables']['property_images']['Insert']
         >
+        Relationships: []
+      }
+      room_images: {
+        Row: {
+          room_image_id: number
+          room_id: number
+          storage_path: string
+          original_filename: string | null
+          mime_type: string | null
+          file_size: number | null
+          is_cover: boolean
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          room_image_id?: number
+          room_id: number
+          storage_path: string
+          original_filename?: string | null
+          mime_type?: string | null
+          file_size?: number | null
+          is_cover?: boolean
+          sort_order?: number
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['room_images']['Insert']>
         Relationships: []
       }
       amenity_categories: {
@@ -394,6 +456,8 @@ export interface Database {
           area_sqm: number | null
           max_occupants: number
           room_image: string | null
+          require_advance: boolean
+          require_deposit: boolean
           created_at: string
           updated_at: string
           deleted_at: string | null
@@ -410,6 +474,8 @@ export interface Database {
           area_sqm?: number | null
           max_occupants?: number
           room_image?: string | null
+          require_advance?: boolean
+          require_deposit?: boolean
           created_at?: string
           updated_at?: string
           deleted_at?: string | null
@@ -598,6 +664,8 @@ export interface Database {
           submission_date: string
           total_amount: number
           currency: string
+          advance_amount: number
+          deposit_amount: number
           payment_due_at: string | null
           created_at: string
           updated_at: string
@@ -623,6 +691,8 @@ export interface Database {
           submission_date?: string
           total_amount?: number
           currency?: string
+          advance_amount?: number
+          deposit_amount?: number
           payment_due_at?: string | null
           created_at?: string
           updated_at?: string
@@ -1121,6 +1191,8 @@ export interface Database {
           p_price: number
           p_rate_valid_from: string | null
           p_rate_valid_until: string | null
+          p_advance?: number
+          p_deposit?: number
         }
         Returns: number
       }
