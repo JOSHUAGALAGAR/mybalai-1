@@ -1,6 +1,6 @@
 'use server'
 
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -38,6 +38,22 @@ function safeNext(value: FormDataEntryValue | null): string {
     !value.startsWith('//')
     ? value
     : '/dashboard'
+}
+
+/**
+ * Where to go once Google / a reset link has signed the person in. It travels in a short-lived cookie
+ * rather than in the redirect address: the project's redirect allow-list matches addresses exactly, so an
+ * address with `?next=…` on it is refused and the sign-in ends on the wrong site.
+ */
+const AUTH_NEXT_COOKIE = 'mb_auth_next'
+async function rememberNext(next: string): Promise<void> {
+  ;(await cookies()).set(AUTH_NEXT_COOKIE, next, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 60 * 60,
+    path: '/',
+  })
 }
 
 async function siteOrigin(): Promise<string> {
@@ -109,7 +125,7 @@ export async function signup(
     password,
     options: {
       data: { full_name: fullName, role: 'tenant' },
-      emailRedirectTo: `${await siteOrigin()}/auth/confirm?next=/dashboard`,
+      emailRedirectTo: `${await siteOrigin()}/auth/confirm`,
     },
   })
 
@@ -146,10 +162,11 @@ export async function signInWithGoogle(formData: FormData): Promise<void> {
   const next = safeNext(formData.get('next'))
   const origin = await siteOrigin()
 
+  await rememberNext(next)
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      redirectTo: `${origin}/auth/callback`,
     },
   })
 
@@ -179,8 +196,9 @@ export async function requestPasswordReset(
   }
 
   const supabase = await createClient()
+  await rememberNext('/reset-password')
   await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${await siteOrigin()}/auth/callback?next=/reset-password`,
+    redirectTo: `${await siteOrigin()}/auth/callback`,
   })
 
   // Always report success — do not reveal whether the email is registered.

@@ -1,5 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const jar = vi.hoisted(() => ({
+  value: undefined as string | undefined,
+  deleted: false,
+}))
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === 'mb_auth_next' && jar.value !== undefined
+        ? { value: jar.value }
+        : undefined,
+    delete: () => {
+      jar.deleted = true
+    },
+  }),
+}))
+
 const exchange = vi.fn()
 const getClaims = vi.fn()
 const signOut = vi.fn()
@@ -42,7 +58,11 @@ function signIn(method: string, roles: string[]) {
   vi.mocked(users.getRoleCodes).mockResolvedValue(roles)
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  jar.value = undefined
+  jar.deleted = false
+})
 
 describe('GET /auth/callback', () => {
   it('signs a landlord back OUT when they came in with Google', async () => {
@@ -90,5 +110,25 @@ describe('GET /auth/callback', () => {
     expect(res.headers.get('location')).toBe(
       'https://mybalai.example/dashboard',
     )
+  })
+
+  it('goes where the sign-in form remembered (cookie), and forgets it', async () => {
+    signIn('oauth', ['tenant'])
+    jar.value = '/reset-password'
+    const res = await call('code=abc')
+    expect(new URL(res.headers.get('location')!).pathname).toBe(
+      '/reset-password',
+    )
+    expect(jar.deleted).toBe(true)
+  })
+
+  it('defaults to the dashboard, and ignores an off-site destination in the cookie', async () => {
+    signIn('oauth', ['tenant'])
+    expect(
+      new URL((await call('code=abc')).headers.get('location')!).pathname,
+    ).toBe('/dashboard')
+    jar.value = '//evil.example'
+    const res = await call('code=abc')
+    expect(new URL(res.headers.get('location')!).pathname).toBe('/dashboard')
   })
 })

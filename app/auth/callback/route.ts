@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 
 import { authMethodsFromClaims } from '@/lib/auth/dal'
@@ -20,7 +21,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const origin = publicOrigin(request)
   const code = searchParams.get('code')
-  const nextParam = searchParams.get('next')
+  // `next` comes from the cookie the sign-in form set (see AUTH_NEXT_COOKIE); an old-style ?next= still works.
+  const cookieStore = await cookies()
+  const nextParam =
+    searchParams.get('next') ?? cookieStore.get('mb_auth_next')?.value ?? null
+  cookieStore.delete('mb_auth_next')
   const next =
     nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
       ? nextParam
