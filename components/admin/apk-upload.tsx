@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 const CHUNK = 8 * 1024 * 1024
 const MAX = 250 * 1024 * 1024
 const HEADERS = { 'x-mybalai-admin': '1' }
+const SESSION_ENDED = 'Your session ended. Please sign in again.'
 
 async function sendChunk(upload: string, offset: number, chunk: Blob) {
   let lastError = 'Upload failed.'
@@ -25,6 +26,8 @@ async function sendChunk(upload: string, offset: number, chunk: Blob) {
           body: chunk,
         },
       )
+      // A signed-out session is redirected to the login page, which is not an answer from the API.
+      if (res.redirected) throw new Error(SESSION_ENDED)
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (res.ok) return
       // Not worth retrying: a rejected file, or the session ended.
@@ -81,8 +84,14 @@ export function ApkUpload() {
         headers: { ...HEADERS, 'content-type': 'application/json' },
         body: JSON.stringify({ upload, totalBytes: file.size, version }),
       })
-      const data = (await res.json().catch(() => ({}))) as { error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Could not publish the file.')
+      if (res.redirected) throw new Error(SESSION_ENDED)
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        ok?: boolean
+      }
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error ?? 'Could not publish the file.')
+      }
       setDone(
         `Published ${mb(file.size)}. The landing page now offers this file.`,
       )
