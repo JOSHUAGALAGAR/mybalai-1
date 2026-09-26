@@ -1,9 +1,18 @@
-import type { NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
 import { updateSession } from '@/lib/supabase/proxy'
 
 // Next.js 16 renamed `middleware` -> `proxy` (nodejs runtime, not edge).
 export async function proxy(request: NextRequest) {
+  // If Supabase could not use our redirect address (it is not in the project's allow-list) it sends
+  // the sign-in code to the site root instead. Pass it on to the callback so the person still ends up
+  // signed in rather than on the home page with a stray ?code=.
+  const { pathname, searchParams } = request.nextUrl
+  if (pathname === '/' && searchParams.has('code')) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/callback'
+    return NextResponse.redirect(url)
+  }
   return updateSession(request)
 }
 
