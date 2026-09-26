@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn }))
 vi.mock('@/repositories/app-downloads.repository', () => ({
   insertAppDownload: vi.fn().mockResolvedValue(undefined),
   countAppDownloads: vi.fn(),
 }))
 
 const repo = await import('@/repositories/app-downloads.repository')
-const { recordAppDownload, getDownloadStats } = await import(
-  '@/services/downloads.service'
-)
+const { recordAppDownload, getDownloadStats, getPublicDownloadTotal } =
+  await import('@/services/downloads.service')
 
 const CHROME =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36'
@@ -29,16 +29,19 @@ describe('recordAppDownload', () => {
     expect(repo.insertAppDownload).not.toHaveBeenCalled()
   })
 
-  it.each(['Googlebot/2.1', 'facebookexternalhit/1.1', 'Slackbot-LinkExpanding'])(
-    'ignores automated fetchers (%s)',
-    async (userAgent) => {
-      await recordAppDownload({ userAgent, startsAtBeginning: true })
-      expect(repo.insertAppDownload).not.toHaveBeenCalled()
-    },
-  )
+  it.each([
+    'Googlebot/2.1',
+    'facebookexternalhit/1.1',
+    'Slackbot-LinkExpanding',
+  ])('ignores automated fetchers (%s)', async (userAgent) => {
+    await recordAppDownload({ userAgent, startsAtBeginning: true })
+    expect(repo.insertAppDownload).not.toHaveBeenCalled()
+  })
 
   it('never throws when the table is missing', async () => {
-    vi.mocked(repo.insertAppDownload).mockRejectedValueOnce(new Error('no table'))
+    vi.mocked(repo.insertAppDownload).mockRejectedValueOnce(
+      new Error('no table'),
+    )
     await expect(
       recordAppDownload({ userAgent: CHROME, startsAtBeginning: true }),
     ).resolves.toBeUndefined()
@@ -52,5 +55,22 @@ describe('getDownloadStats', () => {
     )
     const stats = await getDownloadStats(new Date('2026-09-26T00:00:00Z'))
     expect(stats).toEqual({ total: 40, last30Days: 12, last7Days: 3 })
+  })
+})
+
+describe('getPublicDownloadTotal', () => {
+  it('shows the total once there is at least one download', async () => {
+    vi.mocked(repo.countAppDownloads).mockResolvedValue(1234)
+    expect(await getPublicDownloadTotal()).toBe(1234)
+  })
+
+  it('shows nothing for zero downloads', async () => {
+    vi.mocked(repo.countAppDownloads).mockResolvedValue(0)
+    expect(await getPublicDownloadTotal()).toBeNull()
+  })
+
+  it('shows nothing when tracking is not set up yet', async () => {
+    vi.mocked(repo.countAppDownloads).mockRejectedValue(new Error('no table'))
+    expect(await getPublicDownloadTotal()).toBeNull()
   })
 })

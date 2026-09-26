@@ -26,6 +26,7 @@ import { SiteFooter } from '@/components/marketing/site-footer'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { formatMegabytes, getAndroidApp } from '@/lib/android-app'
 import { getAuthUser } from '@/lib/auth/dal'
+import { getPublicDownloadTotal } from '@/services/downloads.service'
 import { getFeaturedProperties } from '@/services/featured.service'
 import {
   Accordion,
@@ -190,10 +191,11 @@ function FeatureList({ items }: { items: string[] }) {
 export default async function LandingPage() {
   // Light JWT check only (no DB) — the app entry point forwards to the right
   // role home via route guards.
-  const [authUser, featured, androidApp] = await Promise.all([
+  const [authUser, featured, androidApp, downloadTotal] = await Promise.all([
     getAuthUser(),
     getFeaturedProperties(),
     getAndroidApp(),
+    getPublicDownloadTotal(),
   ])
 
   return (
@@ -255,6 +257,12 @@ export default async function LandingPage() {
                     <Badge variant="outline" className="px-3 py-1.5">
                       App Store · Coming soon
                     </Badge>
+                    {downloadTotal ? (
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {downloadTotal.toLocaleString('en-US')}{' '}
+                        {downloadTotal === 1 ? 'download' : 'downloads'}
+                      </span>
+                    ) : null}
                   </div>
                   {androidApp ? (
                     <p className="mt-3 text-xs text-muted-foreground">

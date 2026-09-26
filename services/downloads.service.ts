@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { unstable_cache } from 'next/cache'
+
 import {
   countAppDownloads,
   insertAppDownload,
@@ -10,7 +12,11 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // Link previewers and crawlers fetch the file too; they are not people installing the app.
 const AUTOMATED = /bot|crawl|spider|preview|facebookexternalhit|slurp/i
 
-export type DownloadStats = { total: number; last7Days: number; last30Days: number }
+export type DownloadStats = {
+  total: number
+  last7Days: number
+  last30Days: number
+}
 
 /**
  * Count one download. Only a request for the start of the file counts (a resumed or ranged request
@@ -30,8 +36,11 @@ export async function recordAppDownload(input: {
   }
 }
 
-export async function getDownloadStats(now = new Date()): Promise<DownloadStats> {
-  const since = (days: number) => new Date(now.getTime() - days * DAY_MS).toISOString()
+export async function getDownloadStats(
+  now = new Date(),
+): Promise<DownloadStats> {
+  const since = (days: number) =>
+    new Date(now.getTime() - days * DAY_MS).toISOString()
   const [total, last7Days, last30Days] = await Promise.all([
     countAppDownloads(),
     countAppDownloads(since(7)),
@@ -39,3 +48,20 @@ export async function getDownloadStats(now = new Date()): Promise<DownloadStats>
   ])
   return { total, last7Days, last30Days }
 }
+
+/**
+ * All-time download total for the public landing page, cached for a minute so a busy page does not
+ * count on every visit. Null when there is nothing worth showing (none yet, or tracking not set up).
+ */
+export const getPublicDownloadTotal = unstable_cache(
+  async (): Promise<number | null> => {
+    try {
+      const total = await countAppDownloads()
+      return total > 0 ? total : null
+    } catch {
+      return null
+    }
+  },
+  ['app-download-total'],
+  { revalidate: 60 },
+)
