@@ -1,6 +1,7 @@
 import { type EmailOtpType } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { publicOrigin } from '@/lib/public-origin'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -25,11 +26,11 @@ export async function GET(request: NextRequest) {
       token_hash: tokenHash,
     })
     if (!error) {
-      return NextResponse.redirect(new URL(redirectTo, request.url))
+      return NextResponse.redirect(new URL(redirectTo, publicOrigin(request)))
     }
   }
 
   return NextResponse.redirect(
-    new URL('/login?error=confirmation', request.url),
+    new URL('/login?error=confirmation', publicOrigin(request)),
   )
 }

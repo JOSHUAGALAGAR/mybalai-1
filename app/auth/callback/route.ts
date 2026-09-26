@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 import { authMethodsFromClaims } from '@/lib/auth/dal'
+import { publicOrigin } from '@/lib/public-origin'
 import { createClient } from '@/lib/supabase/server'
 import * as usersRepo from '@/repositories/users.repository'
 
@@ -16,7 +17,8 @@ import * as usersRepo from '@/repositories/users.repository'
  * also arrives here; that is not an OAuth session and is left alone.)
  */
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
+  const origin = publicOrigin(request)
   const code = searchParams.get('code')
   const nextParam = searchParams.get('next')
   const next =
