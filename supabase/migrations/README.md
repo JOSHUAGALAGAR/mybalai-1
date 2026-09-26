@@ -45,6 +45,7 @@ app work against a fresh copy of the baseline schema.
 | `0022_tenant_preferences_and_matching.sql` | Tenant preferences (budget, area, amenities, room kind, opt-in lifestyle) and `match_logs` (recommendations shown, for evaluation). | 21 | `0021` |
 | `0023_tenant_room_types.sql` | Matching preferences use the landlord's room types (Single, Double, …) instead of solo/shared: adds `tenant_preferences.room_type_ids`, drops `room_kind`. | 22 | `0022` |
 | `0024_property_boost_ids.sql` | Gives `property_boosts.boost_id` a sequence default (buying a boost failed with a null `boost_id`). | 23 | `0018` |
+| `0025_app_downloads.sql` | `app_downloads`: one row per Android app download from the landing page (time + platform only), shown on the admin overview. | 24 | — |
 
 ## Verify after applying
 

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import {
   Building2,
@@ -262,7 +263,7 @@ export default async function LandingPage() {
                 </div>
               </div>
 
-              <ProductPreview />
+              <PhoneMockup />
             </div>
           </Section>
         </div>
@@ -543,45 +544,26 @@ function ValueProp({
 
 /* ---- Decorative product previews (pure CSS, no images) ---- */
 
-function ProductPreview() {
+/** The MyBalai tenant app on a phone: a real screenshot of the Home tab, in a simple device frame. */
+function PhoneMockup() {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-center gap-1.5 pb-3">
-        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-        <span className="size-2.5 rounded-full bg-muted-foreground/30" />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          { label: 'Occupied beds', value: '18' },
-          { label: 'Available', value: '6' },
-          { label: 'Pending bookings', value: '3' },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-lg border border-border bg-background p-3"
-          >
-            <p className="text-xs text-muted-foreground">{stat.label}</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 space-y-2">
-        {[
-          ['Sunrise Dorm — Room 2B', 'Confirmed'],
-          ['Bayview Apartments — Unit 5', 'Pending'],
-          ['Hillside Rooms — Bed 3', 'Checked in'],
-        ].map(([name, status]) => (
-          <div
-            key={name}
-            className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
-          >
-            <span className="text-sm text-foreground">{name}</span>
-            <span className="text-xs text-muted-foreground">{status}</span>
-          </div>
-        ))}
+    <div className="relative mx-auto w-64 sm:w-72 lg:ml-auto">
+      <div
+        aria-hidden
+        className="absolute -inset-6 -z-10 rounded-[3rem] bg-brand/10 blur-2xl"
+      />
+      <div className="rounded-[2.6rem] border border-border bg-foreground p-2.5 shadow-2xl shadow-brand/20">
+        <div className="relative overflow-hidden rounded-[2.1rem] bg-background">
+          <Image
+            src="/app-preview.jpg"
+            alt="The MyBalai app: a tenant's home screen with a matched boarding house, its price and why it fits."
+            width={720}
+            height={1472}
+            priority
+            sizes="(min-width: 640px) 288px, 256px"
+            className="block h-auto w-full"
+          />
+        </div>
       </div>
     </div>
   )

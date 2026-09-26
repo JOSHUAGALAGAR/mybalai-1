@@ -29,6 +29,7 @@ import {
 } from '@/services/reports.service'
 import { countPendingApplications } from '@/services/applications.service'
 import { getBoostOverview } from '@/services/boosts.service'
+import { getDownloadStats } from '@/services/downloads.service'
 import { listLandlordsForAdmin } from '@/services/admin.service'
 
 export const metadata: Metadata = { title: 'Admin' }
@@ -39,6 +40,16 @@ async function loadReport(): Promise<PlatformReport | null> {
     return await getPlatformReport()
   } catch (error) {
     console.error('[admin] overview charts failed to load', error)
+    return null
+  }
+}
+
+// Just hides (with a hint) until migration 0025 has been run.
+async function loadDownloads() {
+  try {
+    return await getDownloadStats()
+  } catch (error) {
+    console.error('[admin] app downloads failed to load', error)
     return null
   }
 }
@@ -63,12 +74,13 @@ async function loadLandlordSummary() {
 
 export default async function AdminOverviewPage() {
   await requireArea('superadmin')
-  const [overview, subs, pendingIds, activity, report] = await Promise.all([
+  const [overview, subs, pendingIds, activity, report, downloads] = await Promise.all([
     getListingOverview(),
     loadLandlordSummary(),
     countPendingVerifications(),
     recentActivity(6),
     loadReport(),
+    loadDownloads(),
   ])
 
   return (
@@ -241,6 +253,25 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">
+          Android app downloads
+        </h2>
+        {downloads ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile label="All time" value={downloads.total} />
+            <StatTile label="Last 30 days" value={downloads.last30Days} />
+            <StatTile label="Last 7 days" value={downloads.last7Days} />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Not tracking yet. Run <code>0025_app_downloads.sql</code> in the
+            Supabase SQL editor to start counting downloads from the landing
+            page.
+          </p>
+        )}
+      </section>
+
+      <section>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-foreground">
             Recent activity
@@ -346,19 +377,27 @@ function StatTile({
 }: {
   label: string
   value: number
-  href: string
+  href?: string
   highlight?: boolean
 }) {
+  const className =
+    'rounded-lg border bg-card p-4 ' +
+    (highlight ? 'border-primary' : 'border-border')
+  const body = (
+    <>
+      <p className="text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground capitalize">{label}</p>
+    </>
+  )
+  if (!href) return <div className={className}>{body}</div>
   return (
     <Link
       href={href}
       className={
-        'rounded-lg border bg-card p-4 transition-colors hover:border-ring/60 hover:bg-muted/40 ' +
-        (highlight ? 'border-primary' : 'border-border')
+        className + ' transition-colors hover:border-ring/60 hover:bg-muted/40'
       }
     >
-      <p className="text-2xl font-semibold text-foreground">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground capitalize">{label}</p>
+      {body}
     </Link>
   )
 }

@@ -1,7 +1,10 @@
 import { createReadStream } from 'node:fs'
 import { Readable } from 'node:stream'
 
+import { after } from 'next/server'
+
 import { APK_DOWNLOAD_NAME, getAndroidApp, parseRange } from '@/lib/android-app'
+import { recordAppDownload } from '@/services/downloads.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +27,12 @@ export async function GET(request: Request) {
   const range = parseRange(request.headers.get('range'), app.bytes)
   const start = range?.start ?? 0
   const end = range?.end ?? app.bytes - 1
+  after(() =>
+    recordAppDownload({
+      userAgent: request.headers.get('user-agent'),
+      startsAtBeginning: start === 0,
+    }),
+  )
   const body = Readable.toWeb(createReadStream(app.path, { start, end })) as ReadableStream
   return new Response(body, {
     status: range ? 206 : 200,

@@ -544,6 +544,20 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['match_logs']['Insert']>
         Relationships: []
       }
+      app_downloads: {
+        Row: {
+          download_id: number
+          platform: string
+          created_at: string
+        }
+        Insert: {
+          download_id?: number
+          platform?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['app_downloads']['Insert']>
+        Relationships: []
+      }
       user_roles: {
         Row: {
           legacy_user_id: number
