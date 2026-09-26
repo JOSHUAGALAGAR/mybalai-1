@@ -28,16 +28,6 @@ export function LegalPage({
         Last updated {updated}
       </p>
 
-      <div
-        role="note"
-        className="mt-6 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-foreground"
-      >
-        <strong>Draft for review.</strong> This is a plain-language template
-        that describes how MyBalai works today. It is not legal advice — have a
-        lawyer review it and fill in every <mark>[bracketed]</mark> item before
-        you launch.
-      </div>
-
       <div className="mt-8 space-y-6 text-[15px] leading-7 text-foreground [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_mark]:rounded [&_mark]:bg-amber-500/20 [&_mark]:px-1 [&_p]:text-muted-foreground [&_li]:text-muted-foreground">
         {children}
       </div>

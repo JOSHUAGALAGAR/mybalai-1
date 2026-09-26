@@ -8,11 +8,10 @@ export const metadata: Metadata = { title: 'Privacy Policy' }
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy Policy" updated="[date]">
+    <LegalPage title="Privacy Policy" updated="26 September 2026">
       <p>
-        This explains what personal data MyBalai (run by{' '}
-        <mark>[company / owner name]</mark>) collects, why, and your choices. It
-        applies to the website and the mobile app.
+        This explains what personal data MyBalai (run by Joshua Tuyor) collects,
+        why, and your choices. It applies to the website and the mobile app.
       </p>
 
       <h2>What we collect</h2>
@@ -60,7 +59,7 @@ export default function PrivacyPage() {
         <li>
           <strong>Service providers</strong> that run MyBalai for us: Supabase
           (database and login), PayMongo (payments), Google (sign-in if you
-          choose it) and our hosting provider <mark>[hosting provider]</mark>.
+          choose it) and our hosting provider Hostinger.
         </li>
         <li>Authorities, when the law requires it.</li>
       </ul>
@@ -77,13 +76,13 @@ export default function PrivacyPage() {
         </li>
         <li>
           Ask us to export or delete your account and data at{' '}
-          <mark>[privacy email]</mark>. We may keep records we are legally
-          required to keep, such as payment records.
+          mybalaiofficial@gmail.com. We may keep records we are legally required
+          to keep, such as payment records.
         </li>
         <li>
           Under the Philippine Data Privacy Act you also have the right to be
-          informed, to access, correct and object.{' '}
-          <mark>[name your Data Protection Officer / contact]</mark>
+          informed, to access, correct and object. Our data protection contact
+          is Joshua Tuyor (mybalaiofficial@gmail.com).
         </li>
       </ul>
 
@@ -96,9 +95,8 @@ export default function PrivacyPage() {
       <h2>Retention, children and changes</h2>
       <p>
         We keep data while your account is active and as long as needed for the
-        purposes above. MyBalai is not for people under 18{' '}
-        <mark>[confirm minimum age]</mark>. We will post any changes to this
-        policy here. Contact: <mark>[privacy email]</mark>.
+        purposes above. MyBalai is not for people under 18. We will post any
+        changes to this policy here. Contact: mybalaiofficial@gmail.com.
       </p>
     </LegalPage>
   )

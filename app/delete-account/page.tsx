@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Delete your account' }
  */
 export default function DeleteAccountPage() {
   return (
-    <LegalPage title="Delete your MyBalai account" updated="[date]">
+    <LegalPage title="Delete your MyBalai account" updated="26 September 2026">
       <p>
         You can delete your MyBalai account and personal data at any time,
         without contacting us.
@@ -38,8 +38,8 @@ export default function DeleteAccountPage() {
 
       <h2>Can&apos;t use the app?</h2>
       <p>
-        Email <mark>[privacy email]</mark> from the address on your account and
-        ask us to delete it. We reply within <mark>[e.g. 7]</mark> days.
+        Email mybalaiofficial@gmail.com from the address on your account and ask
+        us to delete it. We reply within 7 days.
       </p>
 
       <h2>What is deleted</h2>
@@ -66,9 +66,9 @@ export default function DeleteAccountPage() {
       <p>
         Booking and payment records are kept without your name (they show a
         &quot;Deleted user&quot;), because we and the landlords you dealt with
-        must keep financial records for accounting and legal reasons — for{' '}
-        <mark>[retention period, e.g. 5 years]</mark>. Payments handled by
-        PayMongo are also subject to PayMongo&apos;s own records.
+        must keep financial records for accounting and legal reasons — for 5
+        years. Payments handled by PayMongo are also subject to PayMongo&apos;s
+        own records.
       </p>
 
       <h2>Before you delete</h2>

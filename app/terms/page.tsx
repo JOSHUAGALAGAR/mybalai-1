@@ -6,11 +6,11 @@ export const metadata: Metadata = { title: 'Terms of Service' }
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of Service" updated="[date]">
+    <LegalPage title="Terms of Service" updated="26 September 2026">
       <p>
         These terms cover your use of MyBalai (the website and the mobile app)
-        run by <mark>[company / owner name]</mark> (&ldquo;we&rdquo;). By
-        creating an account or using MyBalai you agree to them.
+        run by Joshua Tuyor (&ldquo;we&rdquo;). By creating an account or using
+        MyBalai you agree to them.
       </p>
 
       <h2>What MyBalai is</h2>
@@ -52,8 +52,9 @@ export default function TermsPage() {
         </li>
         <li>
           Cancellation and refund rules are set by the landlord&apos;s booking
-          policy shown on the property page <mark>[confirm refund policy]</mark>
-          .
+          policy shown on the property page. If a booking is cancelled or
+          rejected after you have paid, MyBalai can return the payment through
+          our payment provider (PayMongo); the amount follows that policy.
         </li>
       </ul>
 
@@ -78,17 +79,14 @@ export default function TermsPage() {
       <p>
         MyBalai is provided &ldquo;as is&rdquo;. To the extent the law allows,
         we are not liable for disputes between tenants and landlords, the
-        condition of a property, or losses from service interruptions.{' '}
-        <mark>
-          [have counsel confirm the wording and governing law, e.g. Philippine
-          law]
-        </mark>
+        condition of a property, or losses from service interruptions. These
+        terms are governed by the laws of the Republic of the Philippines.
       </p>
 
       <h2>Changes and contact</h2>
       <p>
         We may update these terms; continuing to use MyBalai after a change
-        means you accept it. Questions: <mark>[support email]</mark>.
+        means you accept it. Questions: mybalaiofficial@gmail.com.
       </p>
     </LegalPage>
   )
