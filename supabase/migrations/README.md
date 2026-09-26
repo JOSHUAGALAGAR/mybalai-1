@@ -36,6 +36,15 @@ app work against a fresh copy of the baseline schema.
 | `0013_property_images.sql` | Extends the baseline `property_images` / `room_images` tables (id sequences, `room_images` cover/type/size columns, one cover each) and creates the public 5 MB `property-images` Storage bucket. Uploads use server-issued signed URLs, so no Storage policy is needed. | 12 | `0004` |
 | `0014_advance_and_deposit.sql` | Optional "1 month advance" / "1 month deposit" per property (default for its rooms) and per room; bookings snapshot `advance_amount` / `deposit_amount` (included in `total_amount`); `create_booking()` gains optional `p_advance` / `p_deposit`. | 13 | `0006` |
 | `0015_profile_photos_and_id_verification.sql` | Public `profile-images` bucket; PRIVATE `id-documents` bucket; `identity_verifications` (tenant ID front/back, pending/approved/rejected, admin review); `user_accounts.id_verified_at` for the Verified badge. | 14 | `0004` |
+| `0016_audit_logs_and_portal_ads.sql` | Makes the existing `audit_logs` append-only + indexed; adds `link_label` / `updated_at` to the existing `portal_ads` and a public `portal-ads` bucket. | 15 | `0015` |
+| `0017_landlord_payouts.sql` | Wires up landlord earnings and withdrawals on the existing tables: PayMongo fee setting, a trigger that records each online payment's net (fees snapshotted), and `request_landlord_payout()`. | 16 | `0016` |
+| `0018_property_boosts.sql` | Replaces subscriptions with optional paid boosts: `boost_packages` (admin-priced), purchase columns on `property_boosts`, and `settle_property_boost()`. | 17 | `0017` |
+| `0019_refunds_and_boost_lifecycle.sql` | Refunds (`refund_payment()`, clawbacks netted off withdrawals), `refund_amount` / `mybalai_revenue` on earnings, boost expiry and cancellation columns. | 18 | `0018` |
+| `0020_landlord_applications.sql` | `landlord_applications`: property owners apply from the landing page; the superadmin reviews them. | 19 | `0019` |
+| `0021_application_documents.sql` | Private `application-documents` bucket and `landlord_application_documents` (permits, DTI, proof of ownership, ID) for landlord applications. | 20 | `0020` |
+| `0022_tenant_preferences_and_matching.sql` | Tenant preferences (budget, area, amenities, room kind, opt-in lifestyle) and `match_logs` (recommendations shown, for evaluation). | 21 | `0021` |
+| `0023_tenant_room_types.sql` | Matching preferences use the landlord's room types (Single, Double, …) instead of solo/shared: adds `tenant_preferences.room_type_ids`, drops `room_kind`. | 22 | `0022` |
+| `0024_property_boost_ids.sql` | Gives `property_boosts.boost_id` a sequence default (buying a boost failed with a null `boost_id`). | 23 | `0018` |
 
 ## Verify after applying
 
