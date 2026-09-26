@@ -3,7 +3,15 @@
 Production: https://mybalai.delxtdev.cloud — a CloudPanel Node.js site (nginx → app port **3004**),
 run by PM2 as `mybalai` (`ecosystem.config.cjs`).
 
-## Deploy
+## Automatic deploy (GitHub Actions)
+
+Every push to `main` runs `.github/workflows/deploy.yml`: typecheck, lint and tests, then a build on
+GitHub's runner, then `deploy/deploy.sh` uploads it and reloads PM2. Repository secrets it needs:
+`PRODUCTION_ENV` (the whole `.env.production` file), `SSH_HOST`, `SSH_USER`, `SSH_PASSWORD`,
+`SSH_KNOWN_HOSTS`; and the variable `DEPLOY_DIR` (the site folder on the server). To deploy without
+pushing: Actions → *Deploy to production* → *Run workflow*.
+
+## Manual deploy
 
 1. Commit and push (`git push origin main`).
 2. `cp deploy/env.production.example deploy/.env.production` and fill it in (once).

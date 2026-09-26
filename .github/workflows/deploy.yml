@@ -1,0 +1,65 @@
+name: Deploy to production
+
+# Every push to main is tested, built on GitHub's servers, and uploaded to the production server over SSH.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits instead of cancelling one in progress.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # The production settings live in a repository secret; NEXT_PUBLIC_* values are baked into the build.
+      - name: Write production settings
+        env:
+          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+        run: |
+          test -n "$PRODUCTION_ENV" || { echo "Secret PRODUCTION_ENV is empty"; exit 1; }
+          umask 077
+          printf '%s\n' "$PRODUCTION_ENV" > deploy/.env.production
+          cp deploy/.env.production .env.production.local
+      - run: npm run build
+
+      - name: Trust the server
+        env:
+          KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - run: sudo apt-get install -y sshpass
+
+      - name: Upload and switch over
+        env:
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+          DEPLOY_HOST: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+          PREBUILT: '1'
+          SKIP_CLEAN_CHECK: '1'
+        run: deploy/deploy.sh

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Deploy the committed code (HEAD) to the production server, from your machine.
+# Deploy MyBalai to the production server over SSH.
 #
-#   deploy/deploy.sh            # deploy HEAD
+#   deploy/deploy.sh            # from your machine: uploads HEAD, builds on the server
 #   deploy/deploy.sh rollback   # switch back to the previous release
+#
+# GitHub Actions (.github/workflows/deploy.yml) runs this on every push to main with PREBUILT=1:
+# the build already happened on GitHub's runner, so the server only installs and switches over.
 #
 # Needs: ssh access (key, or `export SSHPASS=...` with sshpass installed), and a local
 # `deploy/.env.production` (see deploy/env.production.example) — it is never committed.
@@ -31,17 +34,30 @@ if [ "${1:-}" = "rollback" ]; then
 fi
 
 [ -f deploy/.env.production ] || { echo "Missing deploy/.env.production (copy deploy/env.production.example)"; exit 1; }
-[ -z "$(git status --porcelain)" ] || { echo "Uncommitted changes: commit (and push) first, so production matches git."; exit 1; }
+[ -n "${SKIP_CLEAN_CHECK:-}" ] || [ -z "$(git status --porcelain)" ] || {
+  echo "Uncommitted changes: commit (and push) first, so production matches git."; exit 1; }
 
 SHA="$(git rev-parse --short HEAD)"
 echo "==> Deploying $SHA to $HOST:$SITE"
 
 echo "==> Uploading code and settings"
 ssh_ "mkdir -p $SITE/releases/$SHA $SITE/shared && umask 077 && cat > $SITE/shared/.env.production.local" < deploy/.env.production
-git archive --format=tar HEAD | ssh_ "cd $SITE/releases/$SHA && tar -x --no-same-owner --no-same-permissions"
+if [ -n "${PREBUILT:-}" ]; then
+  [ -d .next ] || { echo "PREBUILT=1 but there is no .next build"; exit 1; }
+  # tracked files + the build (minus its cache)
+  { git ls-files -z; find .next -path .next/cache -prune -o -type f -print0; } \
+    | tar --null -T - -cf - | ssh_ "cd $SITE/releases/$SHA && tar -x --no-same-owner --no-same-permissions"
+else
+  git archive --format=tar HEAD | ssh_ "cd $SITE/releases/$SHA && tar -x --no-same-owner --no-same-permissions"
+fi
 
-echo "==> Installing and building on the server (a few minutes)"
-ssh_ "cd $SITE/releases/$SHA && ln -sfn ../../shared/.env.production.local .env.production.local && npm ci --no-audit --no-fund && NODE_OPTIONS=--max-old-space-size=1536 npm run build"
+if [ -n "${PREBUILT:-}" ]; then
+  echo "==> Installing on the server"
+  ssh_ "cd $SITE/releases/$SHA && ln -sfn ../../shared/.env.production.local .env.production.local && npm ci --no-audit --no-fund"
+else
+  echo "==> Installing and building on the server (a few minutes)"
+  ssh_ "cd $SITE/releases/$SHA && ln -sfn ../../shared/.env.production.local .env.production.local && npm ci --no-audit --no-fund && NODE_OPTIONS=--max-old-space-size=1536 npm run build"
+fi
 
 echo "==> Switching over"
 ssh_ "cd $SITE && ln -sfn releases/$SHA current && cd current && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"
