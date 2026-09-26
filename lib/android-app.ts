@@ -27,6 +27,9 @@ export type ApkMeta = {
   buildNumber: string | null
   commit: string | null
   publishedAt: string
+  /** Where it came from: an Expo build (webhook) or a file an admin uploaded. */
+  source?: 'expo' | 'upload'
+  uploadedBy?: string | null
 }
 
 export function apkMetaPath(): string {

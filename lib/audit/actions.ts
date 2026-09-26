@@ -27,6 +27,7 @@ export const AUDIT_ACTIONS = {
   'payout.settings_changed': 'Payout & fee settings changed',
   'payout.completed': 'Withdrawal marked paid',
   'payout.failed': 'Withdrawal rejected',
+  'app.apk_published': 'Android app published',
 } as const
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS

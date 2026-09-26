@@ -1,5 +1,6 @@
 import { after } from 'next/server'
 
+import { recordAudit } from '@/services/audit.service'
 import {
   getWebhookSecret,
   installRelease,
@@ -39,6 +40,14 @@ export async function POST(request: Request) {
     try {
       const result = await installRelease(release)
       console.log(`[eas-webhook] build ${release.buildId}: ${result}`)
+      if (result === 'installed') {
+        await recordAudit({
+          actor: null,
+          action: 'app.apk_published',
+          targetType: 'android_app',
+          summary: `Expo build published as the Android app${release.version ? ` v${release.version}` : ''}`,
+        })
+      }
     } catch (error) {
       console.error(`[eas-webhook] build ${release.buildId} failed`, error)
     }

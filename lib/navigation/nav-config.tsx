@@ -14,6 +14,7 @@ import {
   Rocket,
   Search,
   Settings,
+  Smartphone,
   ShieldCheck,
   Star,
   Users,
@@ -302,6 +303,12 @@ const SUPERADMIN_NAV: NavSection[] = [
         href: '/admin/ads',
         label: 'Portal ads',
         icon: Megaphone,
+        match: 'startsWith',
+      },
+      {
+        href: '/admin/app',
+        label: 'Android app',
+        icon: Smartphone,
         match: 'startsWith',
       },
       {

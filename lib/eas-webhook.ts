@@ -1,24 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import {
-  copyFile,
-  open,
-  readFile,
-  rename,
-  rm,
-  writeFile,
-} from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-import {
-  apkMetaPath,
-  apkPath,
-  readApkMeta,
-  sharedDir,
-  type ApkMeta,
-} from '@/lib/android-app'
+import { apkPath, readApkMeta, sharedDir } from '@/lib/android-app'
+import { MAX_APK_BYTES, publishApk } from '@/lib/apk-store'
 
 /**
  * Publishes the Android app automatically. Expo calls `/api/eas/webhook` when a build finishes; if it
@@ -27,8 +15,6 @@ import {
  */
 
 const APP_ID = 'com.mybalai.app'
-const MAX_APK_BYTES = 250 * 1024 * 1024
-const MIN_APK_BYTES = 1024 * 1024
 const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000
 
 export type ApkRelease = {
@@ -152,27 +138,14 @@ async function install(
       limit,
       createWriteStream(part),
     )
-    if (received < MIN_APK_BYTES)
-      throw new Error('downloaded file is too small')
-
-    // An APK is a zip: it must start with "PK\x03\x04".
-    const handle = await open(part, 'r')
-    const magic = Buffer.alloc(4)
-    await handle.read(magic, 0, 4, 0)
-    await handle.close()
-    if (magic.toString('latin1') !== 'PK\x03\x04') throw new Error('not an APK')
-
-    // Keep the previous file for a quick manual rollback, then swap the new one in atomically.
-    await copyFile(target, `${target}.previous`).catch(() => undefined)
-    await rename(part, target)
-    const meta: ApkMeta = {
+    await publishApk(part, {
       buildId: release.buildId,
       version: release.version,
       buildNumber: release.buildNumber,
       commit: release.commit,
       publishedAt: new Date().toISOString(),
-    }
-    await writeFile(apkMetaPath(), JSON.stringify(meta, null, 2))
+      source: 'expo',
+    })
     return 'installed'
   } finally {
     await rm(part, { force: true })

@@ -253,9 +253,14 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">
-          Android app downloads
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-foreground">
+            Android app downloads
+          </h2>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/admin/app">Manage app</Link>
+          </Button>
+        </div>
         {downloads ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile label="All time" value={downloads.total} />
