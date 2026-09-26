@@ -29,7 +29,7 @@ else
 fi
 
 if [ "${1:-}" = "rollback" ]; then
-  ssh_ "cd $SITE && prev=\$(ls -1t releases | sed -n 2p) && [ -n \"\$prev\" ] && ln -sfn releases/\$prev current && cd current && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save && echo \"rolled back to \$prev\""
+  ssh_ "cd $SITE && prev=\$(ls -1t releases | sed -n 2p) && [ -n \"\$prev\" ] && ln -sfn releases/\$prev current && cd current && pm2 delete mybalai >/dev/null 2>&1; pm2 start ecosystem.config.cjs --update-env && pm2 save && echo \"rolled back to \$prev\""
   exit 0
 fi
 
@@ -60,7 +60,7 @@ else
 fi
 
 echo "==> Switching over"
-ssh_ "cd $SITE && ln -sfn releases/$SHA current && cd current && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"
+ssh_ "cd $SITE && ln -sfn releases/$SHA current && cd current && pm2 delete mybalai >/dev/null 2>&1; pm2 start ecosystem.config.cjs --update-env && pm2 save"
 
 echo "==> Tidying old releases"
 ssh_ "cd $SITE/releases && ls -1t | tail -n +$((KEEP + 1)) | xargs -r rm -rf"
