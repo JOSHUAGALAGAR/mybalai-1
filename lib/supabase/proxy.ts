@@ -23,6 +23,8 @@ const PUBLIC_EXACT_PATHS = new Set([
   '/pay/return',
   // The Android app (APK) download linked from the landing page.
   '/download/android',
+  // Expo tells the server about a new app build; the request is signed, not logged in.
+  '/api/eas/webhook',
 ])
 const PUBLIC_PATH_PREFIXES = [
   '/login',

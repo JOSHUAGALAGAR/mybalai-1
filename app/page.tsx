@@ -266,9 +266,11 @@ export default async function LandingPage() {
                   </div>
                   {androidApp ? (
                     <p className="mt-3 text-xs text-muted-foreground">
-                      Android APK · {formatMegabytes(androidApp.bytes)}. After
-                      downloading, open the file and allow installs from your
-                      browser if Android asks.
+                      Android APK ·{' '}
+                      {androidApp.version ? `v${androidApp.version} · ` : ''}
+                      {formatMegabytes(androidApp.bytes)}. After downloading,
+                      open the file and allow installs from your browser if
+                      Android asks.
                     </p>
                   ) : null}
                 </div>

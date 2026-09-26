@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 /**
@@ -11,11 +11,43 @@ export const APK_DOWNLOAD_NAME = 'MyBalai.apk'
 export function apkPath(): string {
   return (
     process.env.MYBALAI_APK_PATH ??
-    path.resolve(process.cwd(), '..', '..', 'shared', 'downloads', 'mybalai.apk')
+    path.join(sharedDir(), 'downloads', 'mybalai.apk')
   )
 }
 
-export type AndroidApp = { path: string; bytes: number; updatedAt: Date }
+/** Where the APK, its notes file and the webhook secret live: the server's `shared/` folder. */
+export function sharedDir(): string {
+  return path.resolve(process.cwd(), '..', '..', 'shared')
+}
+
+/** Details of the published build, written next to the APK when it is installed from an Expo build. */
+export type ApkMeta = {
+  buildId: string
+  version: string | null
+  buildNumber: string | null
+  commit: string | null
+  publishedAt: string
+}
+
+export function apkMetaPath(): string {
+  return `${apkPath()}.json`
+}
+
+export async function readApkMeta(): Promise<ApkMeta | null> {
+  try {
+    const parsed = JSON.parse(await readFile(apkMetaPath(), 'utf8')) as ApkMeta
+    return typeof parsed.buildId === 'string' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export type AndroidApp = {
+  path: string
+  bytes: number
+  updatedAt: Date
+  version: string | null
+}
 
 /** The published APK, or null when none has been uploaded yet (the page then says "coming soon"). */
 export async function getAndroidApp(): Promise<AndroidApp | null> {
@@ -23,7 +55,13 @@ export async function getAndroidApp(): Promise<AndroidApp | null> {
   try {
     const info = await stat(file)
     if (!info.isFile() || info.size === 0) return null
-    return { path: file, bytes: info.size, updatedAt: info.mtime }
+    const meta = await readApkMeta()
+    return {
+      path: file,
+      bytes: info.size,
+      updatedAt: info.mtime,
+      version: meta?.version ?? null,
+    }
   } catch {
     return null
   }
