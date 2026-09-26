@@ -16,6 +16,9 @@ import {
   ArrowRight,
   Download,
   Smartphone,
+  Signal,
+  Wifi,
+  BatteryFull,
 } from 'lucide-react'
 
 import { FeaturedProperties } from '@/components/marketing/featured-properties'
@@ -544,25 +547,66 @@ function ValueProp({
 
 /* ---- Decorative product previews (pure CSS, no images) ---- */
 
-/** The MyBalai tenant app on a phone: a real screenshot of the Home tab, in a simple device frame. */
+/** The MyBalai tenant app in an iPhone-style frame: titanium edge, Dynamic Island, side buttons. */
 function PhoneMockup() {
   return (
     <div className="relative mx-auto w-64 sm:w-72 lg:ml-auto">
       <div
         aria-hidden
-        className="absolute -inset-6 -z-10 rounded-[3rem] bg-brand/10 blur-2xl"
+        className="absolute -inset-8 -z-10 rounded-[4rem] bg-brand/15 blur-3xl"
       />
-      <div className="rounded-[2.6rem] border border-border bg-foreground p-2.5 shadow-2xl shadow-brand/20">
-        <div className="relative overflow-hidden rounded-[2.1rem] bg-background">
-          <Image
-            src="/app-preview.jpg"
-            alt="The MyBalai app: a tenant's home screen with a matched boarding house, its price and why it fits."
-            width={720}
-            height={1472}
-            priority
-            sizes="(min-width: 640px) 288px, 256px"
-            className="block h-auto w-full"
-          />
+      {/* side buttons: action + volume on the left, power on the right */}
+      <span
+        aria-hidden
+        className="absolute top-[13%] -left-[3px] h-6 w-[3px] rounded-l-sm bg-zinc-400"
+      />
+      <span
+        aria-hidden
+        className="absolute top-[20%] -left-[3px] h-11 w-[3px] rounded-l-sm bg-zinc-400"
+      />
+      <span
+        aria-hidden
+        className="absolute top-[28.5%] -left-[3px] h-11 w-[3px] rounded-l-sm bg-zinc-400"
+      />
+      <span
+        aria-hidden
+        className="absolute top-[24%] -right-[3px] h-16 w-[3px] rounded-r-sm bg-zinc-400"
+      />
+
+      {/* titanium band, then the black bezel */}
+      <div className="rounded-[3rem] bg-linear-to-br from-zinc-300 via-zinc-500 to-zinc-300 p-[3px] shadow-2xl shadow-brand/25">
+        <div className="rounded-[2.85rem] bg-black p-[9px]">
+          <div className="relative overflow-hidden rounded-[2.35rem] bg-white">
+            {/* status bar with the Dynamic Island */}
+            <div
+              aria-hidden
+              className="relative flex h-11 items-end justify-between bg-white px-7 pb-1 text-[11px] font-semibold text-black"
+            >
+              <span>9:41</span>
+              <span className="absolute top-2.5 left-1/2 h-[22px] w-[76px] -translate-x-1/2 rounded-full bg-black" />
+              <span className="flex items-center gap-1">
+                <Signal className="size-3" strokeWidth={2.5} />
+                <Wifi className="size-3" strokeWidth={2.5} />
+                <BatteryFull className="size-4" strokeWidth={2} />
+              </span>
+            </div>
+            <Image
+              src="/app-preview.jpg"
+              alt="The MyBalai app: a tenant's home screen with a matched boarding house, its price and why it fits."
+              width={720}
+              height={1472}
+              priority
+              sizes="(min-width: 640px) 288px, 256px"
+              className="block h-auto w-full"
+            />
+            {/* home indicator */}
+            <div
+              aria-hidden
+              className="flex h-5 items-center justify-center bg-white"
+            >
+              <span className="h-1 w-24 rounded-full bg-black/85" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
