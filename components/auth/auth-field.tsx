@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/ui/password-input'
 
 type Props = React.ComponentProps<'input'> & {
   label: string
@@ -21,6 +22,8 @@ export function AuthField({
   const id = inputProps.id ?? name
   const errorId = errors?.length ? `${id}-error` : undefined
   const hintId = hint ? `${id}-hint` : undefined
+  // Every password field gets a show / hide button.
+  const Control = inputProps.type === 'password' ? PasswordInput : Input
 
   return (
     <div className="space-y-1.5">
@@ -28,7 +31,7 @@ export function AuthField({
         <Label htmlFor={id}>{label}</Label>
         {labelRight}
       </div>
-      <Input
+      <Control
         id={id}
         name={name}
         aria-invalid={errors?.length ? true : undefined}
