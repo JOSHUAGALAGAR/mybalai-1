@@ -46,6 +46,7 @@ app work against a fresh copy of the baseline schema.
 | `0023_tenant_room_types.sql` | Matching preferences use the landlord's room types (Single, Double, …) instead of solo/shared: adds `tenant_preferences.room_type_ids`, drops `room_kind`. | 22 | `0022` |
 | `0024_property_boost_ids.sql` | Gives `property_boosts.boost_id` a sequence default (buying a boost failed with a null `boost_id`). | 23 | `0018` |
 | `0025_app_downloads.sql` | `app_downloads`: one row per Android app download from the landing page (time + platform only), shown on the admin overview. | 24 | — |
+| `0026_cancel_payments_with_booking.sql` | Cancelling or rejecting a booking now also cancels its pending / failed payments (trigger + backfill); paid payments go through refunds. | 25 | `0012` |
 
 ## Verify after applying
 
