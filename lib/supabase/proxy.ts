@@ -16,6 +16,8 @@ const PUBLIC_EXACT_PATHS = new Set([
   '/privacy',
   // How to delete your account: linked from Google Play's Data safety form.
   '/delete-account',
+  // Property owners apply to become a landlord without an account.
+  '/apply',
   // PayMongo returns the tenant's phone browser here; it only redirects into the app.
   '/pay/return',
 ])
@@ -71,10 +73,10 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  // IMPORTANT: nothing between createServerClient and getUser().
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // IMPORTANT: nothing between createServerClient and getClaims(). It refreshes an expiring session
+  // (writing the rotated cookies) and verifies the JWT locally — no round trip to Supabase Auth.
+  const { data } = await supabase.auth.getClaims()
+  const user = data?.claims ? { id: data.claims.sub } : null
 
   const { pathname } = request.nextUrl
   const publicPath = isPublicPath(pathname)

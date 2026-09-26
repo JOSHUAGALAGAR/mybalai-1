@@ -1,6 +1,10 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  MANAGER_LIST_LIMIT,
+  type ManagerScope,
+} from '@/repositories/bookings.repository'
 import { RepositoryError } from '@/repositories/reference.repository'
 import { RECEIPT_BUCKET } from '@/schemas/payment'
 import type { Tables } from '@/types/database'
@@ -56,6 +60,42 @@ export async function listPaymentsByBookings(
   const { data, error } = await query
   if (error) throw new RepositoryError('Failed to load payments.', error)
   return data ?? []
+}
+
+/** A manager's payments in ONE query (see `listBookingsForManager`): filtered by owner in the database. */
+export async function listPaymentsForManager(
+  scope: ManagerScope,
+  options: { statusId?: number; limit?: number } = {},
+): Promise<PaymentRow[]> {
+  if (scope.kind === 'properties' && scope.propertyIds.length === 0) return []
+  const admin = createAdminClient()
+  let query =
+    scope.kind === 'owner'
+      ? admin
+          .from('payments')
+          .select('*, bookings!inner(properties!inner(property_owner))')
+          .eq('bookings.properties.property_owner', scope.ownerId)
+      : scope.kind === 'properties'
+        ? admin
+            .from('payments')
+            .select('*, bookings!inner(property_id)')
+            .in('bookings.property_id', scope.propertyIds)
+        : admin.from('payments').select('*')
+  query = query
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(options.limit ?? MANAGER_LIST_LIMIT)
+  if (options.statusId !== undefined) {
+    query = query.eq('payment_status_id', options.statusId)
+  }
+  const { data, error } = await query
+  if (error) throw new RepositoryError('Failed to load payments.', error)
+  return (
+    (data ?? []) as unknown as (PaymentRow & { bookings?: unknown })[]
+  ).map(({ bookings: _joined, ...row }) => {
+    void _joined
+    return row as PaymentRow
+  })
 }
 
 export async function bookingRefsByIds(
@@ -215,6 +255,18 @@ export async function callSetPaymentStatus(args: {
     args,
   )
   if (error) throw new RepositoryError(mapDbError(error), error)
+  return data as string
+}
+
+/** Mark a PAID payment refunded and reverse the landlord's earning. Returns the database's verdict. */
+export async function callRefundPayment(args: {
+  p_payment: number
+  p_actor: number | null
+  p_note: string | null
+}): Promise<string> {
+  const { data, error } = await createAdminClient().rpc('refund_payment', args)
+  if (error)
+    throw new RepositoryError('The refund could not be recorded.', error)
   return data as string
 }
 

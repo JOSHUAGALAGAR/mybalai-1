@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { requireUser } from '@/lib/auth/dal'
+import { liveBoostedIds } from '@/services/boosts.service'
 import * as discoveryRepo from '@/repositories/discovery.repository'
 import * as referenceRepo from '@/repositories/reference.repository'
 import * as imageService from '@/services/property-images.service'
@@ -38,6 +39,8 @@ export type DiscoveryCard = {
   amenityCount: number
   ratingAvg: number | null
   ratingCount: number
+  /** The landlord paid to have this property shown first. */
+  boosted: boolean
 }
 
 export type DiscoveryResults = {
@@ -49,11 +52,12 @@ export type DiscoveryResults = {
 
 export async function getDiscoveryFilters() {
   await requireUser()
-  const [types, amenities] = await Promise.all([
+  const [types, amenities, roomTypes] = await Promise.all([
     referenceRepo.listPropertyTypes(),
     referenceRepo.listAmenities(),
+    referenceRepo.listRoomTypes(),
   ])
-  return { types, amenities }
+  return { types, amenities, roomTypes }
 }
 
 export async function searchProperties(
@@ -67,11 +71,12 @@ export async function searchProperties(
   })
   const ids = properties.map((p) => p.property_id)
 
-  const [rates, amenityLinks, ratings, types] = await Promise.all([
+  const [rates, amenityLinks, ratings, types, boosted] = await Promise.all([
     discoveryRepo.listActiveRates(ids),
     discoveryRepo.listAmenityLinks(ids),
     discoveryRepo.listRatings(ids),
     referenceRepo.listPropertyTypes(),
+    liveBoostedIds(),
   ])
 
   const typeName = new Map(types.map((t) => [t.property_type_id, t.type_name]))
@@ -131,7 +136,12 @@ export async function searchProperties(
         return a.property_name.localeCompare(b.property_name)
       case 'newest':
       default:
-        return b.created_at.localeCompare(a.created_at)
+        // Boosted properties come first in the default order; the rest stay newest first.
+        return (
+          Number(boosted.has(b.property_id)) -
+            Number(boosted.has(a.property_id)) ||
+          b.created_at.localeCompare(a.created_at)
+        )
     }
   })
 
@@ -159,6 +169,7 @@ export async function searchProperties(
         amenityCount: amenitiesByProperty.get(p.property_id)?.size ?? 0,
         ratingAvg: rs.avg,
         ratingCount: rs.count,
+        boosted: boosted.has(p.property_id),
       }
     })
 
@@ -342,4 +353,46 @@ export async function getDiscoveryDetail(propertyId: number) {
     },
     mapUrl,
   }
+}
+
+export type PropertyPin = {
+  propertyId: number
+  name: string
+  lat: number
+  lng: number
+  fromPrice: number | null
+  fromPeriod: string | null
+}
+
+/**
+ * Where every listing is, for showing them on a map: only what a pin needs (name, spot, from-price),
+ * two queries however many listings there are. Listings without a saved location are left out.
+ */
+export async function getPropertyPins(): Promise<PropertyPin[]> {
+  await requireUser()
+  const properties = (await discoveryRepo.listVisibleProperties({})).filter(
+    (p) => p.latitude !== null && p.longitude !== null,
+  )
+  const rates = await discoveryRepo.listActiveRates(
+    properties.map((p) => p.property_id),
+  )
+  const ratesByProperty = new Map<number, discoveryRepo.RateRow[]>()
+  for (const r of rates) {
+    const list = ratesByProperty.get(r.property_id) ?? []
+    list.push(r)
+    ratesByProperty.set(r.property_id, list)
+  }
+  return properties.map((p) => {
+    const { fromPrice, fromPeriod } = summariseRates(
+      ratesByProperty.get(p.property_id) ?? [],
+    )
+    return {
+      propertyId: p.property_id,
+      name: p.property_name,
+      lat: p.latitude as number,
+      lng: p.longitude as number,
+      fromPrice,
+      fromPeriod,
+    }
+  })
 }

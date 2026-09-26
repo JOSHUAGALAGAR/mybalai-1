@@ -14,6 +14,8 @@ const NOTICES: Record<string, string> = {
   check_email: 'Almost there — confirm your email address, then sign in.',
   registered: 'Account created. Sign in to continue.',
   reset_done: 'Your password has been updated. Sign in with your new password.',
+  deleted:
+    'Your account and personal data were deleted. Thank you for using MyBalai.',
   oauth: 'Google sign-in did not complete. Please try again.',
   landlord_google:
     'Landlord accounts sign in with email and password, not Google.',
@@ -34,6 +36,7 @@ export default async function LoginPage({
   if (first(sp.check_email)) notice = NOTICES.check_email
   else if (first(sp.registered)) notice = NOTICES.registered
   else if (first(sp.reset) === 'done') notice = NOTICES.reset_done
+  else if (first(sp.deleted)) notice = NOTICES.deleted
   else if (first(sp.error) === 'oauth') notice = NOTICES.oauth
   else if (first(sp.error) === 'landlord_google')
     notice = NOTICES.landlord_google
@@ -44,8 +47,10 @@ export default async function LoginPage({
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Sign in</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+          Sign in
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           Welcome back to MyBalai.
         </p>
       </div>

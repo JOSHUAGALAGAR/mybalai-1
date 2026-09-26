@@ -10,7 +10,7 @@ import {
 import { ServiceError } from '@/services/errors'
 
 /**
- * Address lookup for the landlord's "Address" field. Only landlords / superadmins may use it
+ * Address lookup for the landlord's "Address" field and a tenant's "Your area". Only tenants, landlords and superadmins may use it
  * (it spends a shared, free public service), each user is limited per minute, and answers are
  * cached briefly so typing the same thing twice costs nothing.
  */
@@ -23,10 +23,18 @@ const CACHE_MAX = 300
 const hits = new Map<number, number[]>()
 const cache = new Map<string, { at: number; value: unknown }>()
 
-async function requireLandlord() {
+/** Landlords (property address) and tenants (their area in matching preferences). */
+async function requireSearcher() {
   const user = await requireUser()
-  if (!user.roles.includes('landlord') && !user.roles.includes('superadmin')) {
-    throw new ServiceError('Only landlords can search addresses.', 'forbidden')
+  if (
+    !['landlord', 'tenant', 'superadmin'].some((r) =>
+      (user.roles as string[]).includes(r),
+    )
+  ) {
+    throw new ServiceError(
+      'Address search is for tenant and landlord accounts.',
+      'forbidden',
+    )
   }
   return user
 }
@@ -59,7 +67,7 @@ export async function searchPlaces(
   rawQuery: string,
   fetcher: Fetcher = realFetch,
 ): Promise<Place[]> {
-  const user = await requireLandlord()
+  const user = await requireSearcher()
   const query = rawQuery.trim().replace(/\s+/g, ' ').slice(0, MAX_QUERY)
   if (query.length < 3) return []
   throttle(user.legacyUserId)
@@ -81,7 +89,7 @@ export async function reversePlace(
   lng: number,
   fetcher: Fetcher = realFetch,
 ): Promise<Place | null> {
-  const user = await requireLandlord()
+  const user = await requireSearcher()
   if (
     !Number.isFinite(lat) ||
     !Number.isFinite(lng) ||

@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 
+import { safeBackTo } from '@/lib/navigation/back-to'
 import * as payments from '@/services/payments.service'
 import { ServiceError } from '@/services/errors'
 
@@ -91,7 +92,7 @@ export async function decidePaymentAction(
   _prev: PaymentActionState,
   formData: FormData,
 ): Promise<PaymentActionState> {
-  const backTo = String(formData.get('back_to') || '/landlord/payments')
+  const backTo = safeBackTo(formData.get('back_to'), '/landlord/payments')
   let id: number
   try {
     id = paymentId(formData)
@@ -104,6 +105,7 @@ export async function decidePaymentAction(
   }
   revalidatePath('/landlord/payments')
   revalidatePath('/caretaker/payments')
+  revalidatePath('/admin/payments')
   redirect(`${backTo}/${id}`)
 }
 
@@ -120,6 +122,7 @@ export async function addNoteAction(
   }
   revalidatePath(`/payments/${id}`)
   revalidatePath(`/landlord/payments/${id}`)
+  revalidatePath(`/admin/payments/${id}`)
   revalidatePath(`/caretaker/payments/${id}`)
   return { status: 'success', message: 'Note added.' }
 }
@@ -140,6 +143,7 @@ export async function addReplyAction(
   }
   revalidatePath(`/payments/${id}`)
   revalidatePath(`/landlord/payments/${id}`)
+  revalidatePath(`/admin/payments/${id}`)
   revalidatePath(`/caretaker/payments/${id}`)
   return { status: 'success', message: 'Reply added.' }
 }
@@ -162,6 +166,7 @@ export async function attachReceiptAction(
   }
   revalidatePath(`/payments/${id}`)
   revalidatePath(`/landlord/payments/${id}`)
+  revalidatePath(`/admin/payments/${id}`)
   return { status: 'success', message: 'Receipt attached.' }
 }
 

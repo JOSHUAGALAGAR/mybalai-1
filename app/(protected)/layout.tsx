@@ -57,6 +57,7 @@ export default async function ProtectedLayout({
         fullName: user.fullName,
         email: user.email,
         roleLabel: ROLE_LABELS[primaryRole(user.roles)],
+        avatarUrl: user.avatarUrl,
       }}
     >
       {children}

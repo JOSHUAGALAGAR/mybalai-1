@@ -198,6 +198,22 @@ export async function getCheckoutSession(id: string): Promise<CheckoutSession> {
 }
 
 /**
+ * The most recent payments on the account (newest first). Needed because a QR Ph payment can be
+ * `paid` while its checkout session still reads `active` with no payments inside it — so the
+ * session alone cannot tell us the tenant has paid. Each payment carries the `metadata` we put on
+ * the session (our payment_id), which is how we match it back.
+ */
+export async function listRecentPayments(
+  limit = 50,
+): Promise<PaymongoResource[]> {
+  const raw = await call<{ data?: PaymongoResource[] }>(
+    `/payments?limit=${Math.min(Math.max(limit, 1), 100)}`,
+    { method: 'GET' },
+  )
+  return raw.data ?? []
+}
+
+/**
  * Verify a `Paymongo-Signature: t=<ts>,te=<test>,li=<live>` header.
  * The signed payload is `${t}.${rawBody}`, HMAC-SHA256 with the webhook secret.
  */

@@ -14,7 +14,7 @@ export const GET = mobileRoute(
 /**
  * Create a property. Body follows the website's form (`property_name`, `address`, `property_type_id`,
  * `description`, `house_rules`, `booking_policy`, `contact_number`, `property_image`, …). The
- * subscription plan's property limit and validation are enforced by the service. A new property is
+ * validation is enforced by the service. A new property is
  * `pending` until a superadmin approves it, so it is not yet visible to tenants.
  */
 export const POST = mobileRoute(

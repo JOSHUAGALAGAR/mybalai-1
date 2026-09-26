@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 
+import { safeBackTo } from '@/lib/navigation/back-to'
 import * as bookings from '@/services/bookings.service'
 import { ServiceError } from '@/services/errors'
 
@@ -53,7 +54,7 @@ export async function transitionBookingAction(
   formData: FormData,
 ): Promise<BookingActionState> {
   let id: number
-  const backTo = String(formData.get('back_to') || '/landlord/bookings')
+  const backTo = safeBackTo(formData.get('back_to'), '/landlord/bookings')
   try {
     id = bookingId(formData)
     await bookings.transitionManagedBooking(id, {
@@ -65,6 +66,7 @@ export async function transitionBookingAction(
   }
   revalidatePath('/landlord/bookings')
   revalidatePath('/caretaker/bookings')
+  revalidatePath('/admin/bookings')
   redirect(`${backTo}/${id}`)
 }
 

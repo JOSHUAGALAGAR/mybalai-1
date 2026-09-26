@@ -70,3 +70,16 @@ export async function softDeleteRate(rateId: number): Promise<void> {
     .is('deleted_at', null)
   if (error) throw new RepositoryError('Failed to delete rental rate.', error)
 }
+
+/** Many rates in one request. */
+export async function insertRates(
+  values: TablesInsert<'rental_rates'>[],
+): Promise<RentalRateRow[]> {
+  if (values.length === 0) return []
+  const { data, error } = await createAdminClient()
+    .from('rental_rates')
+    .insert(values)
+    .select('*')
+  if (error) throw new RepositoryError('Failed to create rental rates.', error)
+  return data ?? []
+}

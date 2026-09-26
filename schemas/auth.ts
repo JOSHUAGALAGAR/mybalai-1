@@ -43,3 +43,21 @@ export const resetPasswordSchema = z
     path: ['confirmPassword'],
   })
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(1, { error: 'Enter your current password.' }),
+    password: newPassword,
+    confirmPassword: z.string().min(1, { error: 'Confirm your new password.' }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    error: 'Passwords do not match.',
+    path: ['confirmPassword'],
+  })
+  .refine((data) => data.password !== data.currentPassword, {
+    error: 'Choose a password you have not used just now.',
+    path: ['password'],
+  })
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

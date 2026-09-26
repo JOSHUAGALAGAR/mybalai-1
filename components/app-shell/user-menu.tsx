@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { LogOut, Settings } from 'lucide-react'
 
 import { logout } from '@/app/(auth)/actions'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ export type UserMenuUser = {
   fullName: string | null
   email: string | null
   roleLabel: string
+  avatarUrl?: string | null
 }
 
 function initials(user: UserMenuUser): string {
@@ -41,6 +42,13 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
           aria-label="Account menu"
         >
           <Avatar className="size-7">
+            {user.avatarUrl && (
+              <AvatarImage
+                src={user.avatarUrl}
+                alt=""
+                className="object-cover"
+              />
+            )}
             <AvatarFallback className="text-xs">
               {initials(user)}
             </AvatarFallback>

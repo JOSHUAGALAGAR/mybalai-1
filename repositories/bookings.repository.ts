@@ -52,6 +52,52 @@ export async function listBookingsByProperties(
   return data ?? []
 }
 
+/** Whose bookings a manager may list: their own properties, a caretaker's assigned ones, or everyone's (superadmin). */
+export type ManagerScope =
+  | { kind: 'owner'; ownerId: number }
+  | { kind: 'properties'; propertyIds: number[] }
+  | { kind: 'all' }
+
+/** The most a manager list loads at once (newest first) — a list is never allowed to grow without bound. */
+export const MANAGER_LIST_LIMIT = 300
+
+/**
+ * A manager's bookings in ONE query. The owner filter is applied in the database (through the
+ * property), so a landlord with hundreds of bookings no longer means "download every property id,
+ * then send them all back in a giant URL".
+ */
+export async function listBookingsForManager(
+  scope: ManagerScope,
+  options: { statusId?: number; limit?: number } = {},
+): Promise<BookingRow[]> {
+  if (scope.kind === 'properties' && scope.propertyIds.length === 0) return []
+  const admin = createAdminClient()
+  let query =
+    scope.kind === 'owner'
+      ? admin
+          .from('bookings')
+          .select('*, properties!inner(property_owner)')
+          .eq('properties.property_owner', scope.ownerId)
+      : admin.from('bookings').select('*')
+  if (scope.kind === 'properties')
+    query = query.in('property_id', scope.propertyIds)
+  query = query
+    .is('deleted_at', null)
+    .order('submission_date', { ascending: false })
+    .limit(options.limit ?? MANAGER_LIST_LIMIT)
+  if (options.statusId !== undefined) {
+    query = query.eq('booking_status_id', options.statusId)
+  }
+  const { data, error } = await query
+  if (error) throw new RepositoryError('Failed to load bookings.', error)
+  return (
+    (data ?? []) as unknown as (BookingRow & { properties?: unknown })[]
+  ).map(({ properties: _joined, ...row }) => {
+    void _joined
+    return row as BookingRow
+  })
+}
+
 /** Confirmed / checked-in bookings holding `bedId` — for availability checks. */
 export async function listBlockingBookingsForBed(
   bedId: number,
@@ -242,4 +288,33 @@ function mapDbError(error: { code?: string; message?: string }): string {
     return error.message ?? 'That change is not allowed for this booking.'
   }
   return 'The booking could not be updated. Please try again.'
+}
+
+/** Who holds (or will hold) beds in a room: confirmed / checked-in bookings, minus one booking. */
+export async function listBlockingBookingsForRoom(
+  roomId: number,
+  blockingStatusIds: number[],
+  options: { excludeBookingId?: number } = {},
+): Promise<
+  {
+    booking_id: number
+    user_id: number
+    check_in_date: string
+    check_out_date: string
+  }[]
+> {
+  if (blockingStatusIds.length === 0) return []
+  let query = createAdminClient()
+    .from('bookings')
+    .select('booking_id, user_id, check_in_date, check_out_date')
+    .eq('room_id', roomId)
+    .in('booking_status_id', blockingStatusIds)
+    .is('deleted_at', null)
+  if (options.excludeBookingId !== undefined) {
+    query = query.neq('booking_id', options.excludeBookingId)
+  }
+  const { data, error } = await query
+  if (error)
+    throw new RepositoryError('Failed to load the room occupants.', error)
+  return data ?? []
 }

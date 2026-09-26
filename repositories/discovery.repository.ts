@@ -105,6 +105,20 @@ export async function listRoomsForProperty(
   return data ?? []
 }
 
+/** The rooms of many properties in one query. */
+export async function listRoomsForProperties(
+  propertyIds: number[],
+): Promise<RoomRow[]> {
+  if (propertyIds.length === 0) return []
+  const { data, error } = await createAdminClient()
+    .from('rooms')
+    .select('*')
+    .in('property_id', propertyIds)
+    .is('deleted_at', null)
+  if (error) throw new RepositoryError('Failed to load rooms.', error)
+  return data ?? []
+}
+
 export async function listBedsForRooms(roomIds: number[]): Promise<BedRow[]> {
   if (roomIds.length === 0) return []
   const { data, error } = await createAdminClient()

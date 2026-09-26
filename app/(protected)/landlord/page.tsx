@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import {
+  Banknote,
   Building2,
+  Rocket,
   CalendarRange,
   ClipboardList,
   CreditCard,
@@ -8,14 +10,16 @@ import {
   MessageSquare,
   Settings,
   Star,
+  UserCog,
   Users,
-  Wallet,
 } from 'lucide-react'
 
+import { AdBanners } from '@/components/ads/ad-banner'
 import { LandlordInsights } from '@/components/dashboard/landlord-insights'
 import { ModuleCard } from '@/components/dashboard/module-card'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { requireArea } from '@/lib/auth/dal'
+import { liveAdsForCurrentUser } from '@/services/ads.service'
 import {
   getLandlordDashboard,
   type LandlordDashboard,
@@ -37,7 +41,10 @@ async function loadDashboard(): Promise<LandlordDashboard | null> {
 export default async function LandlordOverviewPage() {
   const user = await requireArea('landlord', 'superadmin')
   const firstName = user.fullName?.split(' ')[0]
-  const dashboard = await loadDashboard()
+  const [dashboard, ads] = await Promise.all([
+    loadDashboard(),
+    liveAdsForCurrentUser(),
+  ])
 
   return (
     <div>
@@ -45,6 +52,8 @@ export default async function LandlordOverviewPage() {
         title={`Landlord${firstName ? ` · ${firstName}` : ''}`}
         subtitle="Your properties, bookings, payments, and caretaker team."
       />
+
+      <AdBanners ads={ads} />
 
       {dashboard && <LandlordInsights data={dashboard} />}
 
@@ -59,10 +68,10 @@ export default async function LandlordOverviewPage() {
           href="/landlord/properties"
         />
         <ModuleCard
-          title="My plan"
-          description="Your subscription, its limits, and how much you've used."
-          icon={Wallet}
-          href="/landlord/plan"
+          title="Boost"
+          description="Optional: show a property first in search for a few days."
+          icon={Rocket}
+          href="/landlord/boosts"
         />
         <ModuleCard
           title="Bookings"
@@ -71,9 +80,15 @@ export default async function LandlordOverviewPage() {
           href="/landlord/bookings"
         />
         <ModuleCard
+          title="Tenants"
+          description="Who is staying, arriving soon, or has stayed — with contacts."
+          icon={Users}
+          href="/landlord/tenants"
+        />
+        <ModuleCard
           title="Caretakers"
           description="Create caretakers and assign them to specific properties."
-          icon={Users}
+          icon={UserCog}
           href="/landlord/caretakers"
         />
         <ModuleCard
@@ -81,6 +96,12 @@ export default async function LandlordOverviewPage() {
           description="Verify tenant payments and add payment notes."
           icon={CreditCard}
           href="/landlord/payments"
+        />
+        <ModuleCard
+          title="Earnings"
+          description="Your net earnings after fees, and withdrawals."
+          icon={Banknote}
+          href="/landlord/earnings"
         />
         <ModuleCard
           title="Inquiries"
@@ -102,9 +123,9 @@ export default async function LandlordOverviewPage() {
         />
         <ModuleCard
           title="Reports"
-          description="Occupancy, bookings, and revenue summaries."
+          description="Occupancy, bookings, and revenue — with CSV exports."
           icon={FileBarChart}
-          phase={12}
+          href="/landlord/reports"
         />
         <ModuleCard
           title="Settings"

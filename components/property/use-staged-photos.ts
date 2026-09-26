@@ -25,12 +25,19 @@ export function useStagedPhotos({
   nextHref,
   api = serverImageApi,
   uploadFile = uploadToStorage,
+  afterCreate,
 }: {
   state: MutationState
   targetFor: (entityId: number) => ImageTarget
   nextHref: (entityId: number) => string
   api?: ImageApi
   uploadFile?: UploadFile
+  /**
+   * Another step that needs the new record's id (e.g. saving its rooms). Runs before the photos.
+   * Return an error message, or null when done. It may be called again on "Try again", so it
+   * must not redo work that already succeeded.
+   */
+  afterCreate?: (entityId: number) => Promise<string | null>
 }) {
   const router = useRouter()
   const [files, setFiles] = useState<File[]>([])
@@ -46,6 +53,14 @@ export function useStagedPhotos({
 
   async function send(id: number) {
     setFailure(null)
+    if (afterCreate) {
+      const problem = await afterCreate(id)
+      if (problem) return setFailure(problem)
+    }
+    if (files.length === 0) {
+      router.push(nextHref(id))
+      return
+    }
     setProgress({ done: 0, total: files.length })
     const result = await uploadImages({
       target: targetFor(id),

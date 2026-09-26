@@ -9,6 +9,7 @@ import { requireArea } from '@/lib/auth/dal'
 import { canCreateProperty, isSuperadmin } from '@/lib/permissions/properties'
 import { cn } from '@/lib/utils'
 import {
+  getPropertyCardExtras,
   getPropertyFormOptions,
   listPropertiesForUser,
   type PropertyListScope,
@@ -35,6 +36,11 @@ export default async function LandlordPropertiesPage({
     listPropertiesForUser(user, scope),
     getPropertyFormOptions(),
   ])
+
+  const extras = await getPropertyCardExtras(
+    items.map((p) => p.property_id),
+    new Map(items.map((p) => [p.property_id, p.property_image])),
+  )
 
   const typeById = new Map(types.map((t) => [t.property_type_id, t.type_name]))
   const statusById = new Map(
@@ -111,6 +117,8 @@ export default async function LandlordPropertiesPage({
                     : null
                 }
                 ownedByViewer={property.property_owner === user.legacyUserId}
+                roomCount={extras.get(property.property_id)?.roomCount}
+                photos={extras.get(property.property_id)?.photos}
               />
             )
           })}

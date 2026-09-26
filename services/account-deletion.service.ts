@@ -14,6 +14,7 @@ import * as referenceRepo from '@/repositories/reference.repository'
 import * as verificationRepo from '@/repositories/verification.repository'
 import { deleteAccountSchema } from '@/schemas/account'
 import { ServiceError, parseOrThrow } from '@/services/errors'
+import { recordAudit } from '@/services/audit.service'
 
 /**
  * Deleting your own account (tenants and landlords, from the mobile app).
@@ -86,26 +87,32 @@ export async function checkAccountDeletion(): Promise<DeletionCheck> {
   return { role, canDelete: blockers.length === 0, blockers }
 }
 
-export async function deleteMyAccount(input: unknown): Promise<void> {
+export async function deleteMyAccount(
+  input: unknown,
+  /** The web action already checked the password with a fresh sign-in attempt. */
+  options: { passwordConfirmed?: boolean } = {},
+): Promise<void> {
   const user = await requireUser()
   parseOrThrow(deleteAccountSchema, input)
   const role = accountKind(user)
 
   // 1. Who is asking, and how recently did they prove it?
-  const methods = await getSessionAuthMethods()
-  if (methods.length === 0) {
-    throw new ServiceError(
-      'Delete your account from the MyBalai app.',
-      'forbidden',
-    )
-  }
-  if (methods.includes('password')) {
-    const age = await getPasswordAuthAgeSeconds()
-    if (age === null || age > FRESH_PASSWORD_SECONDS) {
+  if (!options.passwordConfirmed) {
+    const methods = await getSessionAuthMethods()
+    if (methods.length === 0) {
       throw new ServiceError(
-        'For your security, enter your password again to delete your account.',
+        'Delete your account from the MyBalai app.',
         'forbidden',
       )
+    }
+    if (methods.includes('password')) {
+      const age = await getPasswordAuthAgeSeconds()
+      if (age === null || age > FRESH_PASSWORD_SECONDS) {
+        throw new ServiceError(
+          'For your security, enter your password again to delete your account.',
+          'forbidden',
+        )
+      }
     }
   }
 
@@ -135,7 +142,6 @@ export async function deleteMyAccount(input: unknown): Promise<void> {
     for (const propertyId of await repo.listOwnedPropertyIds(userId)) {
       await propertiesRepo.softDeleteProperty(propertyId) // off every listing
     }
-    await repo.cancelSubscriptions(userId)
     await repo.deleteLandlordProfile(userId)
   }
 
@@ -150,6 +156,14 @@ export async function deleteMyAccount(input: unknown): Promise<void> {
       userId,
       error,
     )
+  })
+  await recordAudit({
+    actor: null,
+    action: 'account.deleted',
+    targetType: 'user',
+    targetId: userId,
+    summary: `A ${role} deleted their own account (user #${userId})`,
+    details: { role },
   })
   console.info('[account-deletion] account deleted:', userId, role)
 }

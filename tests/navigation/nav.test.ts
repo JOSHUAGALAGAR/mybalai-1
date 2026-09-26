@@ -37,7 +37,7 @@ describe('navForRoles', () => {
     const adminNav = navForRoles(['superadmin', 'tenant'])
     const adminHrefs = adminNav.flatMap((s) => s.items.map((i) => i.href))
     expect(adminHrefs).toContain('/admin')
-    expect(adminHrefs).toContain('/admin/subscriptions')
+    expect(adminHrefs).toContain('/admin/boosts')
   })
 
   it('every nav ends with a Settings link that is not "soon"', () => {

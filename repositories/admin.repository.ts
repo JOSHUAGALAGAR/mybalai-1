@@ -187,6 +187,7 @@ export type AdminUserRow = {
   phone: string | null
   isActive: boolean
   createdAt: string
+  idVerifiedAt: string | null
   roles: string[]
 }
 
@@ -227,7 +228,9 @@ export async function listAllUsers(query?: string): Promise<AdminUserRow[]> {
   const admin = createAdminClient()
   let q = admin
     .from('user_accounts')
-    .select('legacy_user_id, full_name, email, phone, is_active, created_at')
+    .select(
+      'legacy_user_id, full_name, email, phone, is_active, created_at, id_verified_at',
+    )
     .order('legacy_user_id', { ascending: true })
   if (query) {
     const like = `%${query.replace(/[%_]/g, (m) => `\\${m}`)}%`
@@ -247,8 +250,93 @@ export async function listAllUsers(query?: string): Promise<AdminUserRow[]> {
     phone: r.phone,
     isActive: r.is_active,
     createdAt: r.created_at,
+    idVerifiedAt: r.id_verified_at,
     roles: rolesByUser.get(r.legacy_user_id) ?? [],
   }))
+}
+
+export type UserPageQuery = {
+  q?: string
+  role?: string
+  state?: 'active' | 'deactivated' | 'verified' | 'unverified'
+  page: number
+  pageSize: number
+}
+
+/**
+ * One page of accounts, filtered IN THE DATABASE, with its roles riding along — instead of
+ * downloading every account and filtering in memory (which also silently stopped at 1000 rows).
+ */
+export async function listUsersPage(
+  query: UserPageQuery,
+): Promise<{ rows: AdminUserRow[]; total: number }> {
+  const admin = createAdminClient()
+  const fkey = 'user_roles!user_roles_legacy_user_id_fkey'
+
+  let roleId: number | null = null
+  if (query.role) {
+    const { data, error } = await admin
+      .from('roles')
+      .select('role_id')
+      .eq('role_code', query.role)
+      .maybeSingle()
+    if (error) throw new RepositoryError('Failed to resolve role.', error)
+    if (!data) return { rows: [], total: 0 }
+    roleId = data.role_id
+  }
+
+  // A second, inner-joined alias filters by role without hiding the person's OTHER roles.
+  const select =
+    'legacy_user_id, full_name, email, phone, is_active, created_at, id_verified_at, ' +
+    `roles:${fkey}(role_id)` +
+    (roleId !== null ? `, holder:${fkey}!inner(role_id)` : '')
+
+  let q = admin
+    .from('user_accounts')
+    .select(select, { count: 'exact' })
+    .order('legacy_user_id', { ascending: true })
+    .range((query.page - 1) * query.pageSize, query.page * query.pageSize - 1)
+  if (roleId !== null) q = q.eq('holder.role_id', roleId)
+  if (query.q) {
+    const like = `%${query.q.replace(/[%_,()*\\:"]/g, ' ').trim()}%`
+    q = q.or(`full_name.ilike.${like},email.ilike.${like}`)
+  }
+  if (query.state === 'active') q = q.eq('is_active', true)
+  if (query.state === 'deactivated') q = q.eq('is_active', false)
+  if (query.state === 'verified') q = q.not('id_verified_at', 'is', null)
+  if (query.state === 'unverified') q = q.is('id_verified_at', null)
+
+  const { data, error, count } = await q
+  if (error) throw new RepositoryError('Failed to load users.', error)
+
+  const codes = new Map(
+    ((await admin.from('roles').select('role_id, role_code')).data ?? []).map(
+      (r) => [r.role_id, r.role_code],
+    ),
+  )
+  type Row = {
+    legacy_user_id: number
+    full_name: string | null
+    email: string | null
+    phone: string | null
+    is_active: boolean
+    created_at: string
+    id_verified_at: string | null
+    roles: { role_id: number }[] | null
+  }
+  const rows = ((data ?? []) as unknown as Row[]).map((r) => ({
+    legacyUserId: r.legacy_user_id,
+    fullName: r.full_name,
+    email: r.email,
+    phone: r.phone,
+    isActive: r.is_active,
+    createdAt: r.created_at,
+    idVerifiedAt: r.id_verified_at,
+    roles: (r.roles ?? [])
+      .map((l) => codes.get(l.role_id) ?? '')
+      .filter(Boolean),
+  }))
+  return { rows, total: count ?? 0 }
 }
 
 export async function getUserRow(

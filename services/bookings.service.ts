@@ -1,9 +1,11 @@
 import 'server-only'
 
 import { requireUser } from '@/lib/auth/dal'
+import { recordAudit } from '@/services/audit.service'
 import { isSuperadmin } from '@/lib/permissions/properties'
 import { primaryRole } from '@/lib/auth/roles'
 import * as bedsRepo from '@/repositories/beds.repository'
+import * as verificationRepo from '@/repositories/verification.repository'
 import * as bookingsRepo from '@/repositories/bookings.repository'
 import * as caretakersRepo from '@/repositories/caretakers.repository'
 import * as discoveryRepo from '@/repositories/discovery.repository'
@@ -343,6 +345,8 @@ export type BookingDetail = BookingListItem & {
   allowedTransitions: BookingTransition[]
   canTenantCancel: boolean
   tenantId: number
+  /** Manager views only: the tenant's ID was verified by MyBalai. */
+  tenantIdVerified?: boolean
   propertyOwnerId: number | null
   /** statusCode === 'payment_pending' — the tenant still owes payment. */
   needsPayment: boolean
@@ -367,6 +371,12 @@ async function buildDetail(
   return {
     ...base,
     tenantId: row.user_id,
+    tenantIdVerified: options.withTenant
+      ? await verificationRepo
+          .getIdVerifiedAt(row.user_id)
+          .then((at) => at !== null)
+          .catch(() => false) // the verification tables may not be set up yet
+      : undefined,
     propertyOwnerId: property?.property_owner ?? null,
     message: row.booking_message,
     landlordResponse: row.landlord_response,
@@ -436,20 +446,23 @@ export async function cancelMyBooking(
  * Manager (landlord / caretaker / superadmin)
  * ------------------------------------------------------------------ */
 
-async function managerPropertyIds(
+async function managerScope(
   user: Awaited<ReturnType<typeof requireUser>>,
   area: 'landlord' | 'caretaker',
-): Promise<number[] | 'all'> {
-  if (isSuperadmin(user)) return 'all'
+): Promise<bookingsRepo.ManagerScope> {
+  if (isSuperadmin(user)) return { kind: 'all' }
   if (area === 'caretaker') {
-    return caretakersRepo.listAssignedPropertyIds(user.legacyUserId, {
-      activeOnly: true,
-    })
+    return {
+      kind: 'properties',
+      propertyIds: await caretakersRepo.listAssignedPropertyIds(
+        user.legacyUserId,
+        {
+          activeOnly: true,
+        },
+      ),
+    }
   }
-  const props = await propertiesRepo.listProperties({
-    ownerId: user.legacyUserId,
-  })
-  return props.map((p) => p.property_id)
+  return { kind: 'owner', ownerId: user.legacyUserId }
 }
 
 export async function listManagedBookings(
@@ -458,7 +471,7 @@ export async function listManagedBookings(
 ): Promise<BookingListItem[]> {
   const user = await requireUser()
   await bookingsRepo.callExpireOverdueBookings()
-  const ids = await managerPropertyIds(user, area)
+  const scope = await managerScope(user, area)
 
   let statusId: number | undefined
   if (statusCode) {
@@ -468,20 +481,11 @@ export async function listManagedBookings(
     )?.booking_status_id
   }
 
-  if (ids === 'all') {
-    const all = await propertiesRepo.listProperties({})
-    return decorate(
-      await bookingsRepo.listBookingsByProperties(
-        all.map((p) => p.property_id),
-        { statusId },
-      ),
-      { withTenant: true },
-    )
-  }
-
   return decorate(
-    await bookingsRepo.listBookingsByProperties(ids, { statusId }),
-    { withTenant: true },
+    await bookingsRepo.listBookingsForManager(scope, { statusId }),
+    {
+      withTenant: true,
+    },
   )
 }
 
@@ -527,4 +531,14 @@ export async function transitionManagedBooking(
     p_to_code: to,
     p_response: response ?? null,
   })
+  if (isSuperadmin(user)) {
+    await recordAudit({
+      actor: user,
+      action: 'booking.status_changed',
+      targetType: 'booking',
+      targetId: bookingId,
+      summary: `Moved booking #${bookingId} from ${fromCode ?? 'unknown'} to ${to}`,
+      details: { from: fromCode, to },
+    })
+  }
 }

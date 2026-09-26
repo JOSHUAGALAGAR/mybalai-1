@@ -8,6 +8,7 @@ import {
   requireManageableRate,
 } from '@/services/property-access'
 import { rentalRateFormSchema } from '@/schemas/rental-rate'
+import { firstBatchProblem, rateBatchSchema } from '@/schemas/room-batch'
 
 async function assertRoomInProperty(propertyId: number, roomId: number) {
   const room = await roomsRepo.getRoom(roomId)
@@ -62,4 +63,40 @@ export async function deleteRate(
 ): Promise<void> {
   await requireManageableRate(propertyId, rateId)
   await ratesRepo.softDeleteRate(rateId)
+}
+
+/** Save many rates for existing rooms from one JSON draft — one request to the database. */
+export async function createRatesBatch(
+  propertyId: number,
+  input: unknown,
+): Promise<{ rates: number }> {
+  await requireManageableProperty(propertyId)
+  const parsed = rateBatchSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ServiceError(
+      firstBatchProblem(parsed.error, 'Rate'),
+      'validation',
+    )
+  }
+  const roomIds = new Set(
+    (await roomsRepo.listRoomsByProperty(propertyId)).map((r) => r.room_id),
+  )
+  const bad = parsed.data.rates.findIndex((r) => !roomIds.has(r.room_id))
+  if (bad !== -1) {
+    throw new ServiceError(
+      `Rate ${bad + 1}: that room does not belong to this property.`,
+      'validation',
+    )
+  }
+  const created = await ratesRepo.insertRates(
+    parsed.data.rates.map((r) => ({
+      property_id: propertyId,
+      room_id: r.room_id,
+      period: r.period,
+      price: r.price,
+      valid_from: r.valid_from,
+      valid_until: r.valid_until ?? null,
+    })),
+  )
+  return { rates: created.length }
 }

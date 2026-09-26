@@ -104,6 +104,15 @@ const BOOKING_STATUS_ORDER = [
   'expired',
 ]
 
+/** Lifecycle order (pending first ... expired last), so bars read like a booking's journey. */
+export function sortBookingStatusCounts(counts: StatusCount[]): StatusCount[] {
+  const rank = (code: string) => {
+    const i = BOOKING_STATUS_ORDER.indexOf(code)
+    return i === -1 ? BOOKING_STATUS_ORDER.length : i
+  }
+  return [...counts].sort((a, b) => rank(a.code) - rank(b.code))
+}
+
 export function bookingStatusCounts(bookings: BookingInput[]): StatusCount[] {
   const counts = new Map<string, StatusCount>()
   for (const b of bookings) {

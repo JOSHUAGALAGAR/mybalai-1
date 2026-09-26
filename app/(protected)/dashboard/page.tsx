@@ -10,15 +10,18 @@ import {
   Star,
 } from 'lucide-react'
 
+import { AdBanners } from '@/components/ads/ad-banner'
 import { ModuleCard } from '@/components/dashboard/module-card'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { requireArea } from '@/lib/auth/dal'
+import { liveAdsForCurrentUser } from '@/services/ads.service'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
 export default async function TenantDashboardPage() {
   const user = await requireArea('tenant')
   const firstName = user.fullName?.split(' ')[0]
+  const ads = await liveAdsForCurrentUser()
 
   return (
     <div>
@@ -26,6 +29,8 @@ export default async function TenantDashboardPage() {
         title={`Welcome${firstName ? `, ${firstName}` : ''}`}
         subtitle="Find a place, manage your bookings, and stay in touch with your landlord."
       />
+
+      <AdBanners ads={ads} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ModuleCard

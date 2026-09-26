@@ -6,17 +6,21 @@ import {
   CreditCard,
   MessageSquare,
   Settings,
+  Users,
 } from 'lucide-react'
 
+import { AdBanners } from '@/components/ads/ad-banner'
 import { ModuleCard } from '@/components/dashboard/module-card'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { requireArea } from '@/lib/auth/dal'
+import { liveAdsForCurrentUser } from '@/services/ads.service'
 
 export const metadata: Metadata = { title: 'Caretaker' }
 
 export default async function CaretakerOverviewPage() {
   const user = await requireArea('caretaker', 'superadmin')
   const firstName = user.fullName?.split(' ')[0]
+  const ads = await liveAdsForCurrentUser()
 
   return (
     <div>
@@ -24,6 +28,8 @@ export default async function CaretakerOverviewPage() {
         title={`Caretaker${firstName ? ` · ${firstName}` : ''}`}
         subtitle="Operations for the properties assigned to you."
       />
+
+      <AdBanners ads={ads} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ModuleCard
@@ -43,6 +49,12 @@ export default async function CaretakerOverviewPage() {
           description="View payments for assigned properties and add notes."
           icon={CreditCard}
           href="/caretaker/payments"
+        />
+        <ModuleCard
+          title="Tenants"
+          description="Who is staying at your assigned properties, with contacts."
+          icon={Users}
+          href="/caretaker/tenants"
         />
         <ModuleCard
           title="Inquiries"

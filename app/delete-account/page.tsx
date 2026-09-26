@@ -59,10 +59,7 @@ export default function DeleteAccountPage() {
           Messages you sent, inquiries and reviews you wrote, and your
           notifications.
         </li>
-        <li>
-          Landlords: your properties are removed from all listings and your
-          subscription is cancelled.
-        </li>
+        <li>Landlords: your properties are removed from all listings.</li>
       </ul>
 
       <h2>What we keep</h2>

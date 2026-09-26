@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { UserActiveToggle } from '@/components/admin/user-active-toggle'
+import { UserResetPassword } from '@/components/admin/user-reset-password'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Badge } from '@/components/ui/badge'
 import { requireArea } from '@/lib/auth/dal'
@@ -16,7 +17,7 @@ export default async function AdminUserDetailPage({
 }: {
   params: Promise<{ userId: string }>
 }) {
-  await requireArea('superadmin')
+  const me = await requireArea('superadmin')
   const userId = Number((await params).userId)
   if (!Number.isInteger(userId) || userId <= 0) notFound()
 
@@ -32,6 +33,10 @@ export default async function AdminUserDetailPage({
     ['Email', user.email],
     ['Phone', user.phone],
     ['Address', user.address],
+    [
+      'ID verified',
+      user.idVerifiedAt ? new Date(user.idVerifiedAt).toLocaleString() : null,
+    ],
     ['Joined', new Date(user.createdAt).toLocaleString()],
     [
       'Last login',
@@ -87,7 +92,21 @@ export default async function AdminUserDetailPage({
         <h2 className="mb-2 text-sm font-semibold text-foreground">
           Account access
         </h2>
-        <UserActiveToggle userId={user.legacyUserId} isActive={user.isActive} />
+        <div className="flex flex-wrap items-start gap-3">
+          <UserActiveToggle
+            userId={user.legacyUserId}
+            isActive={user.isActive}
+          />
+          {!user.roles.includes('superadmin') &&
+            user.legacyUserId !== me.legacyUserId && (
+              <UserResetPassword
+                userId={user.legacyUserId}
+                name={
+                  user.fullName ?? user.email ?? `user #${user.legacyUserId}`
+                }
+              />
+            )}
+        </div>
       </section>
     </div>
   )

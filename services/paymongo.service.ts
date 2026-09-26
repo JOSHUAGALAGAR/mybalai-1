@@ -1,11 +1,13 @@
 import 'server-only'
 
 import { requireRole, requireUser } from '@/lib/auth/dal'
+import { BOOST_ID_SETUP_MESSAGE, isBoostIdProblem } from '@/lib/db-errors'
 import { isPaymongoConfigured } from '@/lib/env.server'
 import {
   createCheckoutSession,
   extractPaidPayment,
   getCheckoutSession,
+  listRecentPayments,
   verifyWebhookSignature,
   PaymongoError,
   type PaymongoResource,
@@ -17,8 +19,9 @@ import * as messagingRepo from '@/repositories/messaging.repository'
 import * as paymentsRepo from '@/repositories/payments.repository'
 import * as paymongoRepo from '@/repositories/paymongo.repository'
 import * as referenceRepo from '@/repositories/reference.repository'
-import * as subsRepo from '@/repositories/subscriptions.repository'
+import * as boostsRepo from '@/repositories/boosts.repository'
 import { ServiceError } from '@/services/errors'
+import { requireManageableProperty } from '@/services/property-access'
 
 export { isPaymongoConfigured }
 
@@ -235,48 +238,73 @@ async function findPendingPayment(bookingId: number, userId: number) {
 }
 
 /* ------------------------------------------------------------------ *
- * Landlord — pay for a subscription plan online
+ * Landlord — buy a property boost online
  * ------------------------------------------------------------------ */
 
-export async function startSubscriptionCheckout(
-  planId: number,
-): Promise<string> {
+/**
+ * Start paying for a boost of one of the landlord's properties. The boost is created `pending`
+ * and only becomes active when PayMongo says it was paid (webhook, or the check on the boosts page).
+ */
+export async function startBoostCheckout(input: {
+  propertyId: number
+  packageId: number
+  /** Override the return addresses (the mobile app returns through the bridge page). */
+  urls?: (ids: { boostId: number }) => { successUrl: string; cancelUrl: string }
+}): Promise<{ checkoutUrl: string; boostId: number }> {
   ensureConfigured()
   const user = await requireRole('landlord', 'superadmin')
 
-  const plan = await subsRepo.getPlan(planId)
-  if (!plan || !plan.is_active) {
-    throw new ServiceError('That plan is not available.', 'not_found')
+  const pack = await boostsRepo.getPackage(input.packageId)
+  if (!pack || !pack.is_active) {
+    throw new ServiceError('That boost is not available.', 'not_found')
   }
-  if (Number(plan.price) <= 0) {
+  const { property } = await requireManageableProperty(input.propertyId)
+  const status = (await referenceRepo.listPropertyStatuses()).find(
+    (st) => st.property_status_id === property.status_id,
+  )?.status_code
+  if (status !== 'active') {
     throw new ServiceError(
-      'This plan has no price — the superadmin assigns it directly.',
+      'Only an approved (active) property can be boosted.',
       'conflict',
     )
   }
 
-  const order = await paymongoRepo.insertSubscriptionOrder({
-    landlord_id: user.legacyUserId,
-    plan_id: plan.plan_id,
-    amount: Number(plan.price),
-    interval_days: plan.billing_interval_days,
-  })
+  await boostsRepo.cancelPendingFor(property.property_id) // stale, never-paid checkouts
+  const boost = await boostsRepo
+    .insertPending({
+      property_id: property.property_id,
+      landlord_id: property.property_owner ?? user.legacyUserId,
+      package_id: pack.package_id,
+      days: pack.days,
+      amount: Number(pack.price),
+    })
+    .catch((error: unknown) => {
+      if (isBoostIdProblem(error)) {
+        throw new ServiceError(BOOST_ID_SETUP_MESSAGE, 'conflict')
+      }
+      throw error
+    })
 
   const origin = siteOrigin()
+  const { successUrl, cancelUrl } = input.urls
+    ? input.urls({ boostId: boost.boost_id })
+    : {
+        successUrl: `${origin}/landlord/boosts?paid=1`,
+        cancelUrl: `${origin}/landlord/boosts`,
+      }
   const session = await pmCall('start the checkout', () =>
     createCheckoutSession({
-      amountPhp: Number(plan.price),
-      name: `MyBalai ${plan.name} plan`,
-      description: `${plan.name} subscription (${plan.billing_interval_days} days)`,
-      referenceNumber: `SUB-${order.order_id}`,
-      successUrl: `${origin}/landlord/plan?subscribed=1`,
-      cancelUrl: `${origin}/landlord/plan`,
-      metadata: { kind: 'subscription', order_id: String(order.order_id) },
+      amountPhp: Number(pack.price),
+      name: `MyBalai boost — ${property.property_name}`,
+      description: `Boost ${property.property_name} for ${pack.days} days`,
+      referenceNumber: `BOOST-${boost.boost_id}`,
+      successUrl,
+      cancelUrl,
+      metadata: { kind: 'boost', boost_id: String(boost.boost_id) },
     }),
   )
-
-  await paymongoRepo.attachSessionToOrder(order.order_id, session.id)
-  return session.checkoutUrl
+  await boostsRepo.attachSession(boost.boost_id, session.id)
+  return { checkoutUrl: session.checkoutUrl, boostId: boost.boost_id }
 }
 
 /* ------------------------------------------------------------------ *
@@ -311,7 +339,7 @@ export async function handleWebhook(
 
   // Resolve the MyBalai record: metadata first, then the session id.
   let paymentId = Number(metadata.payment_id) || 0
-  let orderId = Number(metadata.order_id) || 0
+  let boostId = Number(metadata.boost_id) || 0
   let kind = metadata.kind
 
   if (!kind && resource.id) {
@@ -320,20 +348,41 @@ export async function handleWebhook(
       kind = 'booking_payment'
       paymentId = p.payment_id
     } else {
-      const o = await paymongoRepo.getOrderBySessionId(resource.id)
-      if (o) {
-        kind = 'subscription'
-        orderId = o.order_id
+      const boost = await boostsRepo.getBoostBySession(resource.id)
+      if (boost) {
+        kind = 'boost'
+        boostId = boost.boost_id
       }
     }
   }
 
-  if (kind === 'booking_payment') {
+  if (outcome === 'refunded') {
+    await applyRefund(kind, { paymentId, boostId })
+  } else if (kind === 'booking_payment') {
     if (outcome === 'paid') await settlePaidBooking(paymentId, resource)
     else await failBookingPayment(paymentId, resource)
-  } else if (kind === 'subscription' && outcome === 'paid') {
+  } else if (kind === 'boost' && outcome === 'paid') {
     const paid = extractPaidPayment(resource)
-    await settleSubscriptionOrder(orderId, paid?.paymongoPaymentId ?? null)
+    await settleBoost(boostId, paid?.paymongoPaymentId ?? null)
+  }
+}
+
+/** Money was given back at PayMongo: mirror it. A refunded booking payment reverses the earning. */
+async function applyRefund(
+  kind: string | undefined,
+  ids: { paymentId: number; boostId: number },
+): Promise<void> {
+  if (kind === 'booking_payment' && ids.paymentId > 0) {
+    await paymentsRepo.callRefundPayment({
+      p_payment: ids.paymentId,
+      p_actor: null,
+      p_note: null,
+    })
+  } else if (kind === 'boost' && ids.boostId > 0) {
+    await boostsRepo.cancelBoost(ids.boostId, {
+      reason: 'Refunded at PayMongo.',
+      refunded: true,
+    })
   }
 }
 
@@ -385,39 +434,26 @@ async function failBookingPayment(
   })
 }
 
-async function settleSubscriptionOrder(
-  orderId: number,
+/** Activate a paid boost (idempotent) and tell the landlord. */
+async function settleBoost(
+  boostId: number,
   paymongoPaymentId: string | null,
 ): Promise<void> {
-  if (!Number.isInteger(orderId) || orderId <= 0) return
-  const order = await paymongoRepo.getOrder(orderId)
-  if (!order || order.status === 'paid') return
-
-  await paymongoRepo.markOrderPaid(orderId, paymongoPaymentId)
-
-  const now = new Date()
-  const endsAt = new Date(
-    now.getTime() + order.interval_days * 86_400_000,
-  ).toISOString()
-
-  await subsRepo.upsertSubscription({
-    landlord_id: order.landlord_id,
-    plan_id: order.plan_id,
-    status: 'active',
-    starts_at: now.toISOString(),
-    ends_at: endsAt,
-    assigned_by: null,
-    note: `Paid online (order #${orderId}).`,
-  })
-
-  await messagingRepo.notify({
-    user_id: order.landlord_id,
-    notification_type: 'SUBSCRIPTION',
-    title: 'Subscription active',
-    message: 'Your plan payment went through — your subscription is active.',
-    reference_type: 'subscription',
-    reference_id: order.plan_id,
-  })
+  if (!Number.isInteger(boostId) || boostId <= 0) return
+  const boost = await boostsRepo.getBoost(boostId)
+  if (!boost || boost.status === 'active' || boost.status === 'expired') return
+  const result = await boostsRepo.callSettle(boostId, paymongoPaymentId)
+  if (result !== 'settled') return
+  await messagingRepo
+    .notify({
+      user_id: boost.landlord_id,
+      notification_type: 'PAYMENT',
+      title: 'Boost active',
+      message: 'Your payment went through — your property is now boosted.',
+      reference_type: 'boost',
+      reference_id: boostId,
+    })
+    .catch((error) => console.error('[paymongo] boost notify failed:', error))
 }
 
 /* ------------------------------------------------------------------ *
@@ -454,11 +490,125 @@ export async function reconcilePayment(
   )
   const paid = extractPaidPayment(session.raw)
   if (paid && amountMatches(payment, paid)) {
-    await paymongoRepo.callSettleBookingPayment({
-      p_payment: paymentId,
-      p_paymongo_payment_id: paid.paymongoPaymentId,
-    })
+    await settle(paymentId, paid.paymongoPaymentId)
+    return { status: 'paid' }
+  }
+
+  // The session can still read "active" after a QR Ph payment went through: look the payment up.
+  const recent = await recentPaymentsBestEffort()
+  const found = findPaidFor(paymentId, payment, recent)
+  if (found) {
+    await settle(paymentId, found)
     return { status: 'paid' }
   }
   return { status: 'pending' }
+}
+
+async function settle(paymentId: number, paymongoPaymentId: string | null) {
+  await paymongoRepo.callSettleBookingPayment({
+    p_payment: paymentId,
+    p_paymongo_payment_id: paymongoPaymentId,
+  })
+}
+
+/** Recent PayMongo payments, or [] when they cannot be fetched (reconciliation is best-effort). */
+async function recentPaymentsBestEffort(): Promise<PaymongoResource[]> {
+  try {
+    return await listRecentPayments(50)
+  } catch (error) {
+    console.error('[paymongo] could not list recent payments:', error)
+    return []
+  }
+}
+
+/**
+ * The PayMongo payment id that settles MyBalai payment `paymentId`, if one of `recent` is a PAID
+ * payment that we created for it (metadata.payment_id) for exactly the amount we asked for.
+ */
+export function findPaidFor(
+  paymentId: number,
+  record: { amount: number; currency: string },
+  recent: PaymongoResource[],
+  key: 'payment_id' | 'boost_id' = 'payment_id',
+): string | null {
+  for (const resource of recent) {
+    if (resource.attributes?.metadata?.[key] !== String(paymentId)) continue
+    const paid = extractPaidPayment({ ...resource, type: 'payment' })
+    if (paid && amountMatches(record, paid)) return paid.paymongoPaymentId
+  }
+  return null
+}
+
+/**
+ * Settle every payment of the signed-in tenant that PayMongo says is already paid but that the
+ * webhook never told us about (it cannot reach a laptop / a server that is down). One PayMongo
+ * call covers all of them, and nothing is called when there is nothing pending. Never throws:
+ * the screen asking for it must still load.
+ */
+export async function reconcileMyPendingPayments(): Promise<number> {
+  try {
+    if (!isPaymongoConfigured()) return 0
+    const user = await requireUser()
+    const [mine, statuses] = await Promise.all([
+      paymentsRepo.listPaymentsByUser(user.legacyUserId),
+      referenceRepo.listPaymentStatuses(),
+    ])
+    const pendingId = statuses.find(
+      (s) => s.status_code === 'pending',
+    )?.payment_status_id
+    const waiting = mine.filter(
+      (p) =>
+        p.payment_status_id === pendingId &&
+        p.paymongo_session_id &&
+        p.booking_id != null,
+    )
+    if (waiting.length === 0) return 0
+
+    const recent = await recentPaymentsBestEffort()
+    let settled = 0
+    for (const payment of waiting) {
+      const found = findPaidFor(payment.payment_id, payment, recent)
+      if (found) {
+        await settle(payment.payment_id, found)
+        settled += 1
+      }
+    }
+    return settled
+  } catch (error) {
+    console.error('[paymongo] reconcile of pending payments failed:', error)
+    return 0
+  }
+}
+
+/**
+ * Activate every boost of the signed-in landlord that PayMongo says is paid but that the webhook
+ * never told us about. One PayMongo call, none when nothing is pending; never throws.
+ */
+export async function reconcileMyPendingBoosts(): Promise<number> {
+  try {
+    if (!isPaymongoConfigured()) return 0
+    const user = await requireUser()
+    const waiting = (await boostsRepo.listByLandlord(user.legacyUserId)).filter(
+      (b) => b.status === 'pending' && b.paymongo_session_id,
+    )
+    if (waiting.length === 0) return 0
+    const recent = await recentPaymentsBestEffort()
+    let activated = 0
+    for (const boost of waiting) {
+      const found = findPaidFor(
+        boost.boost_id,
+        { amount: Number(boost.amount), currency: 'PHP' },
+        recent,
+        'boost_id',
+      )
+      if (found) {
+        await settleBoost(boost.boost_id, found)
+        activated += 1
+      }
+    }
+    return activated
+  } catch (error) {
+    console.error('[paymongo] reconcile of pending boosts failed:', error)
+    return 0
+  }
 }

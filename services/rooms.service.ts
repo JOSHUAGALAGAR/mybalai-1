@@ -2,19 +2,19 @@ import 'server-only'
 
 import * as bedsRepo from '@/repositories/beds.repository'
 import * as referenceRepo from '@/repositories/reference.repository'
+import * as ratesRepo from '@/repositories/rental-rates.repository'
 import * as roomsRepo from '@/repositories/rooms.repository'
-import { isSuperadmin } from '@/lib/permissions/properties'
+import { firstBatchProblem, roomBatchSchema } from '@/schemas/room-batch'
 import {
   explainMissingAdvanceColumns,
   onlyEnabledRequirements,
 } from '@/lib/db-errors'
-import { parseOrThrow } from '@/services/errors'
+import { ServiceError, parseOrThrow } from '@/services/errors'
 import {
   requireManageableProperty,
   requireManageableRoom,
   requireOperableRoom,
 } from '@/services/property-access'
-import * as subscriptions from '@/services/subscriptions.service'
 import {
   DEFAULT_ROOM_STATUS,
   roomRequirementsSchema,
@@ -85,12 +85,9 @@ export async function createRoom(
   propertyId: number,
   input: unknown,
 ): Promise<roomsRepo.RoomRow> {
-  const { user, property } = await requireManageableProperty(propertyId)
+  await requireManageableProperty(propertyId)
   const data = parseOrThrow(roomFormSchema, input)
 
-  if (!isSuperadmin(user) && property.property_owner != null) {
-    await subscriptions.assertCanAddRoom(property.property_owner, propertyId)
-  }
   const statusId = await referenceRepo.resolveStatusId(
     'room_statuses',
     data.status_code ?? DEFAULT_ROOM_STATUS,
@@ -148,4 +145,97 @@ export async function deleteRoom(
 ): Promise<void> {
   await requireManageableRoom(propertyId, roomId)
   await roomsRepo.softDeleteRoom(roomId)
+}
+
+/* ------------------------------------------------------------------ *
+ * Batch: many rooms (with their beds and rates) from one JSON draft
+ * ------------------------------------------------------------------ */
+
+export type RoomBatchResult = {
+  rooms: number
+  beds: number
+  rates: number
+  /** Ids of the new rooms, in the order of the draft (the browser uploads each room's photos to its id). */
+  roomIds: number[]
+}
+
+/**
+ * Save a whole draft in three requests (rooms, beds, rates) instead of one page load per room.
+ * If a later step fails, the rooms just created are taken back off so nothing half-done is left.
+ */
+export async function createRoomsBatch(
+  propertyId: number,
+  input: unknown,
+): Promise<RoomBatchResult> {
+  await requireManageableProperty(propertyId)
+  const parsed = roomBatchSchema.safeParse(input)
+  if (!parsed.success) {
+    throw new ServiceError(
+      firstBatchProblem(parsed.error, 'Room'),
+      'validation',
+    )
+  }
+  const drafts = parsed.data.rooms
+
+  const [roomStatusId, bedStatusId] = await Promise.all([
+    referenceRepo.resolveStatusId('room_statuses', DEFAULT_ROOM_STATUS),
+    referenceRepo.resolveStatusId('bed_statuses', 'available'),
+  ])
+
+  const created = await roomsRepo
+    .insertRooms(
+      drafts.map((d) => ({
+        ...onlyEnabledRequirements({
+          room_number: d.room_number ?? null,
+          room_name: d.room_name ?? null,
+          room_type_id: d.room_type_id ?? null,
+          floor: d.floor ?? null,
+          area_sqm: d.area_sqm ?? null,
+          max_occupants: d.max_occupants,
+          description: d.description ?? null,
+          require_advance: d.require_advance,
+          require_deposit: d.require_deposit,
+        }),
+        property_id: propertyId,
+        status_id: roomStatusId,
+      })),
+    )
+    .catch(explainMissingAdvanceColumns)
+
+  // `insert ... returning` keeps input order, so rooms[i] is drafts[i].
+  const beds = created.flatMap((room, i) =>
+    Array.from({ length: drafts[i].beds }, (_, n) => ({
+      room_id: room.room_id,
+      bed_number: String(n + 1),
+      status_id: bedStatusId,
+    })),
+  )
+  const rates = created.flatMap((room, i) =>
+    drafts[i].rates.map((rate) => ({
+      property_id: propertyId,
+      room_id: room.room_id,
+      period: rate.period,
+      price: rate.price,
+      valid_from: rate.valid_from,
+      valid_until: rate.valid_until ?? null,
+    })),
+  )
+
+  try {
+    await bedsRepo.insertBeds(beds)
+    await ratesRepo.insertRates(rates)
+  } catch (error) {
+    await roomsRepo
+      .softDeleteRooms(created.map((r) => r.room_id))
+      .catch((rollback) =>
+        console.error('[rooms] batch rollback failed:', rollback),
+      )
+    throw error
+  }
+  return {
+    rooms: created.length,
+    beds: beds.length,
+    rates: rates.length,
+    roomIds: created.map((r) => r.room_id),
+  }
 }

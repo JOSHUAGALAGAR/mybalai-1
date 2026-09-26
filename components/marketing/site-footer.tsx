@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+import { BrandLogo } from '@/components/brand/brand-logo'
+
 const YEAR = new Date().getFullYear()
 
 export function SiteFooter() {
@@ -7,9 +9,7 @@ export function SiteFooter() {
     <footer className="border-t border-border bg-muted/30">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 md:flex-row md:items-start md:justify-between">
         <div className="max-w-xs">
-          <p className="text-base font-semibold tracking-tight text-foreground">
-            MyBalai
-          </p>
+          <BrandLogo size={36} />
           <p className="mt-2 text-sm text-muted-foreground">
             Property and rental management for tenants, landlords, and
             caretakers.

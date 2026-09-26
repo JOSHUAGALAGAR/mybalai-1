@@ -1,6 +1,7 @@
 import 'server-only'
 
-import { requireUser, type CurrentUser } from '@/lib/auth/dal'
+import { requireRole, requireUser, type CurrentUser } from '@/lib/auth/dal'
+import { recordAudit } from '@/services/audit.service'
 import { primaryRole } from '@/lib/auth/roles'
 import { canManageProperty, isSuperadmin } from '@/lib/permissions/properties'
 import * as bookingsRepo from '@/repositories/bookings.repository'
@@ -454,21 +455,23 @@ export async function attachReceipt(
  * Manager
  * ------------------------------------------------------------------ */
 
-async function managerPropertyIds(
+async function managerScope(
   user: CurrentUser,
   area: 'landlord' | 'caretaker',
-): Promise<number[]> {
-  if (isSuperadmin(user)) {
-    return (await propertiesRepo.listProperties({})).map((p) => p.property_id)
-  }
+): Promise<bookingsRepo.ManagerScope> {
+  if (isSuperadmin(user)) return { kind: 'all' }
   if (area === 'caretaker') {
-    return caretakersRepo.listAssignedPropertyIds(user.legacyUserId, {
-      activeOnly: true,
-    })
+    return {
+      kind: 'properties',
+      propertyIds: await caretakersRepo.listAssignedPropertyIds(
+        user.legacyUserId,
+        {
+          activeOnly: true,
+        },
+      ),
+    }
   }
-  return (
-    await propertiesRepo.listProperties({ ownerId: user.legacyUserId })
-  ).map((p) => p.property_id)
+  return { kind: 'owner', ownerId: user.legacyUserId }
 }
 
 export async function listManagedPayments(
@@ -476,10 +479,7 @@ export async function listManagedPayments(
   statusCode?: string,
 ): Promise<PaymentListItem[]> {
   const user = await requireUser()
-  const propertyIds = await managerPropertyIds(user, area)
-
-  const bookings = await bookingsRepo.listBookingsByProperties(propertyIds)
-  const bookingIds = bookings.map((b) => b.booking_id)
+  const scope = await managerScope(user, area)
 
   let statusId: number | undefined
   if (statusCode) {
@@ -490,8 +490,10 @@ export async function listManagedPayments(
   }
 
   return decorate(
-    await paymentsRepo.listPaymentsByBookings(bookingIds, { statusId }),
-    { withPayer: true },
+    await paymentsRepo.listPaymentsForManager(scope, { statusId }),
+    {
+      withPayer: true,
+    },
   )
 }
 
@@ -518,5 +520,58 @@ export async function decidePayment(
     p_actor_role: primaryRole(user.roles),
     p_to_code: to,
     p_note: note ?? null,
+  })
+  if (user.roles.includes('superadmin')) {
+    await recordAudit({
+      actor: user,
+      action: 'payment.decided',
+      targetType: 'payment',
+      targetId: paymentId,
+      summary: `Set payment #${paymentId} to ${to}`,
+      details: { to },
+    })
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Refunds (superadmin)
+ * ------------------------------------------------------------------ */
+
+const REFUND_PROBLEMS: Record<string, string> = {
+  not_found: 'Payment not found.',
+  not_paid: 'Only a paid payment can be refunded.',
+  already_refunded: 'This payment was already refunded.',
+}
+
+/**
+ * Record that a paid payment was refunded. This does NOT move money: refund the tenant in the
+ * PayMongo dashboard (PayMongo then tells us by webhook and this is done for you), or do it by
+ * hand and record it here. The landlord's earning is reversed; if it was already withdrawn, the
+ * amount is taken off their next withdrawal.
+ */
+export async function refundPayment(
+  paymentId: number,
+  input: { note?: string },
+): Promise<void> {
+  const actor = await requireRole('superadmin')
+  const note = (input.note ?? '').trim().slice(0, 2000) || null
+  const result = await paymentsRepo.callRefundPayment({
+    p_payment: paymentId,
+    p_actor: actor.legacyUserId,
+    p_note: note,
+  })
+  if (result !== 'refunded') {
+    throw new ServiceError(
+      REFUND_PROBLEMS[result] ?? 'The refund could not be recorded.',
+      result === 'not_found' ? 'not_found' : 'conflict',
+    )
+  }
+  await recordAudit({
+    actor,
+    action: 'payment.refunded',
+    targetType: 'payment',
+    targetId: paymentId,
+    summary: `Recorded a refund for payment #${paymentId}`,
+    details: { note },
   })
 }

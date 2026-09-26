@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 
+import { safeBackTo } from '@/lib/navigation/back-to'
 import * as extensions from '@/services/extensions.service'
 import { ServiceError } from '@/services/errors'
 
@@ -76,7 +77,7 @@ export async function decideExtensionAction(
   _prev: ExtensionActionState,
   formData: FormData,
 ): Promise<ExtensionActionState> {
-  const backTo = String(formData.get('back_to') || '/landlord/bookings')
+  const backTo = safeBackTo(formData.get('back_to'), '/landlord/bookings')
   const bookingId = String(formData.get('booking_id') || '')
   try {
     await extensions.decideExtension(positiveInt(formData, 'extension_id'), {
@@ -88,5 +89,6 @@ export async function decideExtensionAction(
   }
   revalidatePath('/landlord/bookings')
   revalidatePath('/caretaker/bookings')
+  revalidatePath('/admin/bookings')
   redirect(`${backTo}/${bookingId}`)
 }

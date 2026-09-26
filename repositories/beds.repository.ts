@@ -91,3 +91,16 @@ export async function softDeleteBed(bedId: number): Promise<void> {
     .is('deleted_at', null)
   if (error) throw new RepositoryError('Failed to delete bed.', error)
 }
+
+/** Many beds in one request. */
+export async function insertBeds(
+  values: TablesInsert<'beds'>[],
+): Promise<BedRow[]> {
+  if (values.length === 0) return []
+  const { data, error } = await createAdminClient()
+    .from('beds')
+    .insert(values)
+    .select('*')
+  if (error) throw new RepositoryError('Failed to add beds.', error)
+  return data ?? []
+}

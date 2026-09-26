@@ -9,7 +9,6 @@ import * as roomsRepo from '@/repositories/rooms.repository'
 import * as usersRepo from '@/repositories/users.repository'
 import { ServiceError, parseOrThrow } from '@/services/errors'
 import { requireOperableProperty } from '@/services/property-access'
-import * as subscriptions from '@/services/subscriptions.service'
 import { assignmentsSchema, createCaretakerSchema } from '@/schemas/caretaker'
 
 export type CaretakerSummary = {
@@ -31,12 +30,8 @@ async function assertIsCaretaker(legacyUserId: number): Promise<void> {
 export async function createCaretaker(input: unknown): Promise<{
   legacyUserId: number
 }> {
-  const actor = await requireArea('landlord', 'superadmin')
+  await requireArea('landlord', 'superadmin')
   const data = parseOrThrow(createCaretakerSchema, input)
-
-  if (!actor.roles.includes('superadmin')) {
-    await subscriptions.assertCanAddCaretaker(actor.legacyUserId)
-  }
 
   const existing = await usersRepo.getAccountByEmail(data.email)
   if (existing) {

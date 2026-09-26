@@ -48,7 +48,7 @@ export function SidebarNav({
                   aria-disabled
                   title="Coming soon"
                   className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground/60',
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground/60',
                     collapsed && 'justify-center',
                   )}
                 >
@@ -72,14 +72,19 @@ export function SidebarNav({
                 onClick={onNavigate}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
                   collapsed && 'justify-center',
                   active
-                    ? 'bg-muted font-medium text-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    ? 'bg-accent font-semibold text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                 )}
               >
-                <Icon className="size-4 shrink-0" />
+                <Icon
+                  className={cn(
+                    'size-[18px] shrink-0',
+                    active && 'text-primary',
+                  )}
+                />
                 {!collapsed && (
                   <span className="flex-1 truncate">{item.label}</span>
                 )}

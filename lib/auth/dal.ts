@@ -42,13 +42,25 @@ export type CurrentUser = {
   roles: AppRole[]
 }
 
-export const getAuthUser = cache(async () => {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  return user
-})
+/**
+ * Who is signed in, read from the session cookie's JWT and VERIFIED locally against the project's
+ * signing keys (`getClaims`) — no call to Supabase Auth. The old `getUser()` cost a ~300 ms network
+ * round trip on every page. A token stays valid until it expires (an hour), but nothing that
+ * matters relies on that alone: the account's `is_active` flag and roles are re-read from the
+ * database (or its short cache) on every request.
+ */
+export const getAuthUser = cache(
+  async (): Promise<{ id: string; email: string | null } | null> => {
+    const supabase = await createClient()
+    const { data } = await supabase.auth.getClaims()
+    const claims = data?.claims
+    if (!claims || typeof claims.sub !== 'string') return null
+    return {
+      id: claims.sub,
+      email: typeof claims.email === 'string' ? claims.email : null,
+    }
+  },
+)
 
 /* ------------------------------------------------------------------ *
  * Mobile bearer-token identity
@@ -128,13 +140,13 @@ export async function getPasswordAuthAgeSeconds(): Promise<number | null> {
 }
 
 /**
- * Loading a user is 2–3 sequential queries (~1 s when the database is a few
- * hundred ms away). The mobile app calls the API on every screen, so remember
- * the result briefly per auth user. Trade-off: deactivating an account or
- * changing a role takes up to `CURRENT_USER_TTL_MS` to reach a phone that is
- * mid-session. Cookie (web) sessions are not cached across requests.
+ * Loading a user is a database round trip (~300 ms when the database is a few hundred ms away)
+ * on EVERY page and API call, so the result is remembered briefly per auth user — for the mobile
+ * app and the website alike. Trade-off: deactivating an account or changing a role takes up to
+ * `CURRENT_USER_TTL_MS` to reach a session that is already open; code that changes a person's
+ * account calls `invalidateCurrentUser` so their own next request sees it at once.
  */
-const CURRENT_USER_TTL_MS = 30_000
+const CURRENT_USER_TTL_MS = 20_000
 const CURRENT_USER_MAX_ENTRIES = 500
 const currentUserCache = new Map<
   string,
@@ -157,42 +169,40 @@ const getRoleCodesById = memoAsync(async () => {
   return new Map((data ?? []).map((r) => [r.role_id, r.role_code] as const))
 }, 5 * 60_000)
 
+type AccountWithRoles = {
+  legacy_user_id: number
+  email: string | null
+  full_name: string | null
+  phone: string | null
+  address: string | null
+  avatar_url: string | null
+  is_active: boolean
+  user_roles: { role_id: number }[] | null
+}
+
+/** The account AND its roles in ONE request (the roles ride along as an embedded list). */
 async function loadCurrentUser(
   authUserId: string,
 ): Promise<CurrentUser | null> {
-  const admin = createAdminClient()
-
-  const { data: account, error: accountError } = await admin
-    .from('user_accounts')
-    .select(
-      'legacy_user_id, email, full_name, phone, address, avatar_url, is_active',
-    )
-    .eq('auth_user_id', authUserId)
-    .maybeSingle()
-
-  if (accountError) {
-    throw new Error(`Failed to load user account: ${accountError.message}`)
-  }
+  const [{ data, error }, roleCodeById] = await Promise.all([
+    createAdminClient()
+      .from('user_accounts')
+      .select(
+        'legacy_user_id, email, full_name, phone, address, avatar_url, is_active, user_roles!user_roles_legacy_user_id_fkey(role_id)',
+      )
+      .eq('auth_user_id', authUserId)
+      .maybeSingle(),
+    getRoleCodesById(),
+  ])
+  if (error) throw new Error(`Failed to load user account: ${error.message}`)
+  const account = data as unknown as AccountWithRoles | null
   if (!account) {
     // Auth user exists but provisioning has not run (or failed). Treat as
     // unauthenticated so the caller is redirected to a clean state.
     return null
   }
 
-  const [{ data: roleLinks, error: roleLinkError }, roleCodeById] =
-    await Promise.all([
-      admin
-        .from('user_roles')
-        .select('role_id')
-        .eq('legacy_user_id', account.legacy_user_id),
-      getRoleCodesById(),
-    ])
-
-  if (roleLinkError) {
-    throw new Error(`Failed to load user roles: ${roleLinkError.message}`)
-  }
-
-  const roles = (roleLinks ?? [])
+  const roles = (account.user_roles ?? [])
     .map((link) => roleCodeById.get(link.role_id))
     .filter((code): code is AppRole => code != null && isAppRole(code))
 
@@ -213,21 +223,20 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const identity = await getAuthIdentity()
   if (!identity) return null
 
-  if (identity.viaBearer) {
-    const hit = currentUserCache.get(identity.id)
-    if (hit && hit.expires > Date.now()) {
-      return { ...hit.user, roles: [...hit.user.roles] }
-    }
+  const hit = currentUserCache.get(identity.id)
+  if (hit && hit.expires > Date.now()) {
+    return { ...hit.user, roles: [...hit.user.roles] }
   }
 
   const user = await loadCurrentUser(identity.id)
 
-  if (user && identity.viaBearer) {
+  if (user) {
     if (currentUserCache.size >= CURRENT_USER_MAX_ENTRIES) {
       currentUserCache.clear()
     }
+    // store a COPY: the caller keeps `user`, and must never be able to change what others get
     currentUserCache.set(identity.id, {
-      user,
+      user: { ...user, roles: [...user.roles] },
       expires: Date.now() + CURRENT_USER_TTL_MS,
     })
   }

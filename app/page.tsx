@@ -189,36 +189,45 @@ export default async function LandingPage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <Section className="pt-16! sm:pt-24!">
-          <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-            <div>
-              <Badge variant="secondary" className="mb-4">
-                Property & rental management
-              </Badge>
-              <h1 className="text-4xl font-semibold tracking-tight text-balance text-foreground sm:text-5xl">
-                Run the whole rental lifecycle in one place
-              </h1>
-              <p className="mt-4 max-w-xl text-lg text-muted-foreground">
-                MyBalai connects tenants, landlords, and caretakers — property
-                listings, rooms and beds, bookings, payments, and messaging,
-                without spreadsheets and group chats.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button asChild size="lg">
-                  <Link href="/signup">Get started as a tenant</Link>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <a href="#for-landlords">I&apos;m a landlord</a>
-                </Button>
-              </div>
-              <p className="mt-4 text-xs text-muted-foreground">
-                Free tenant account. No credit card required.
-              </p>
-            </div>
-
-            <ProductPreview />
+        <div className="relative overflow-hidden bg-linear-to-b from-hero-top to-background">
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <div className="absolute -top-24 -right-20 size-96 rounded-full bg-brand/10" />
+            <div className="absolute top-24 right-1/3 size-32 rounded-full border-2 border-brand/20" />
+            <div className="absolute -bottom-16 -left-16 size-72 rounded-full bg-brand/5" />
           </div>
-        </Section>
+          <Section className="relative pt-16! sm:pt-24!">
+            <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+              <div>
+                <Badge variant="secondary" className="mb-4">
+                  Property & rental management
+                </Badge>
+                <h1 className="text-4xl font-extrabold tracking-tight text-balance text-foreground sm:text-6xl">
+                  Run the whole rental lifecycle in one place
+                </h1>
+                <p className="mt-4 max-w-xl text-lg text-muted-foreground">
+                  MyBalai connects tenants, landlords, and caretakers — property
+                  listings, rooms and beds, bookings, payments, and messaging,
+                  without spreadsheets and group chats.
+                </p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <Button asChild size="lg" className="px-8">
+                    <Link href="/signup">Get started as a tenant</Link>
+                  </Button>
+                  <Button asChild size="lg" variant="outline">
+                    <Link href="/apply">
+                      I&apos;m a landlord — list my property
+                    </Link>
+                  </Button>
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Free tenant account. No credit card required.
+                </p>
+              </div>
+
+              <ProductPreview />
+            </div>
+          </Section>
+        </div>
 
         {/* Trust strip */}
         <div className="border-y border-border bg-muted/30">
@@ -255,7 +264,7 @@ export default async function LandingPage() {
               <Card key={step.title} className="h-full">
                 <CardHeader>
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <span className="inline-flex size-9 items-center justify-center rounded-xl bg-accent text-primary">
                       <step.icon className="size-4" />
                     </span>
                     <span className="text-xs font-medium text-muted-foreground">
@@ -379,7 +388,7 @@ export default async function LandingPage() {
           </Section>
         </div>
 
-        {/* Subscription / landlord CTA */}
+        {/* Landlord CTA */}
         <Section>
           <Card className="overflow-hidden">
             <CardContent className="flex flex-col items-start gap-4 p-8 sm:flex-row sm:items-center sm:justify-between">
@@ -388,12 +397,14 @@ export default async function LandingPage() {
                   Managing properties on MyBalai
                 </h3>
                 <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                  Landlord accounts are provisioned with a subscription that
-                  sets portfolio limits. Talk to us to get set up.
+                  Listing is free. Apply and our team sets up your landlord
+                  account, and we only take a small fee (1.5%) on payments
+                  completed through the platform. Optionally boost a property to
+                  be shown first.
                 </p>
               </div>
-              <Button asChild size="lg" variant="outline">
-                <a href="#faq">Learn more</a>
+              <Button asChild size="lg">
+                <Link href="/apply">List your property</Link>
               </Button>
             </CardContent>
           </Card>
@@ -426,8 +437,8 @@ export default async function LandingPage() {
             Ready to get started?
           </h2>
           <p className="mx-auto mt-3 max-w-md text-muted-foreground">
-            Create a free tenant account, or reach out about a landlord
-            subscription.
+            Create a free tenant account, or reach out to list your property for
+            free.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild size="lg">

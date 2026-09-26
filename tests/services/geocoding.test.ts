@@ -35,11 +35,13 @@ const fresh = () => `road ${++n}` // a query nobody searched before (the cache i
 beforeEach(() => vi.clearAllMocks())
 
 describe('searchPlaces', () => {
-  it('is for landlords and superadmins only', async () => {
+  it('is for tenants, landlords and superadmins only', async () => {
     asUser(['tenant'])
-    await expect(svc.searchPlaces(fresh(), vi.fn())).rejects.toMatchObject({
-      code: 'forbidden',
-    })
+    const provider = vi.fn<Fetcher>().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    } as never)
+    await expect(svc.searchPlaces(fresh(), provider)).resolves.toEqual([])
     asUser(['caretaker'])
     await expect(svc.searchPlaces(fresh(), vi.fn())).rejects.toMatchObject({
       code: 'forbidden',

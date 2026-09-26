@@ -6,6 +6,7 @@ import {
   isLandlord,
   isSuperadmin,
 } from '@/lib/permissions/properties'
+import * as imagesRepo from '@/repositories/property-images.repository'
 import * as propertiesRepo from '@/repositories/properties.repository'
 import * as referenceRepo from '@/repositories/reference.repository'
 import * as roomsRepo from '@/repositories/rooms.repository'
@@ -18,7 +19,6 @@ import {
 } from '@/lib/db-errors'
 import { ServiceError, parseOrThrow } from '@/services/errors'
 import { requireManageableProperty } from '@/services/property-access'
-import * as subscriptions from '@/services/subscriptions.service'
 import type { TablesUpdate } from '@/types/database'
 import {
   DEFAULT_NEW_PROPERTY_STATUS,
@@ -36,6 +36,43 @@ export async function listPropertiesForUser(
     scope === 'mine' || (isLandlord(user) && !isSuperadmin(user))
   return propertiesRepo.listProperties(
     restrictToOwn ? { ownerId: user.legacyUserId } : {},
+  )
+}
+
+export type PropertyCardExtras = { roomCount: number; photos: string[] }
+
+/**
+ * What a list card shows besides the property itself: how many rooms, and its photos (cover
+ * first). Two queries for the whole list. Never fails the page: missing photo tables just mean
+ * no photos.
+ */
+export async function getPropertyCardExtras(
+  propertyIds: number[],
+  legacyCovers: Map<number, string | null> = new Map(),
+): Promise<Map<number, PropertyCardExtras>> {
+  const [counts, galleries] = await Promise.all([
+    roomsRepo.countRoomsByProperties(propertyIds).catch((error) => {
+      console.error('[properties] room counts unavailable:', error)
+      return new Map<number, number>()
+    }),
+    imagesRepo.listUrlsByOwners('property', propertyIds).catch((error) => {
+      console.error('[properties] photos unavailable:', error)
+      return new Map<number, string[]>()
+    }),
+  ])
+  return new Map(
+    propertyIds.map((id) => {
+      const photos = galleries.get(id) ?? []
+      const legacy = legacyCovers.get(id)
+      return [
+        id,
+        {
+          roomCount: counts.get(id) ?? 0,
+          // a cover pasted the old way (before photo uploads) still shows
+          photos: photos.length > 0 ? photos : legacy ? [legacy] : [],
+        },
+      ]
+    }),
   )
 }
 
@@ -98,11 +135,6 @@ export async function createProperty(
   }
 
   const data = parseOrThrow(propertyFormSchema, input)
-
-  // Subscription cap — the superadmin is not limited.
-  if (!isSuperadmin(user)) {
-    await subscriptions.assertCanAddProperty(user.legacyUserId)
-  }
 
   const statusId = await referenceRepo.resolveStatusId(
     'property_statuses',

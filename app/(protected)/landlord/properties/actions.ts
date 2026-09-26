@@ -55,9 +55,12 @@ function intField(formData: FormData, name: string): number {
   return value
 }
 
-/** The form sends `image_count` = how many photos the browser is about to upload. */
-const wantsPhotos = (values: Record<string, string>) =>
-  Number(values.image_count) > 0
+/**
+ * The form sends `image_count` = photos the browser is about to upload and `room_count` = rooms it
+ * is about to save. Either means: answer with the new id and let the browser finish the job.
+ */
+const wantsFollowUp = (values: Record<string, string>) =>
+  Number(values.image_count) > 0 || Number(values.room_count) > 0
 
 const propBase = (id: number) => `/landlord/properties/${id}`
 
@@ -78,7 +81,7 @@ export async function createPropertyAction(
   }
   revalidatePath('/landlord/properties')
   // Photos are picked in the browser and uploaded after the property exists, so hand back its id.
-  if (wantsPhotos(values)) {
+  if (wantsFollowUp(values)) {
     return { status: 'success', message: 'Property created.', entityId: newId }
   }
   redirect(propBase(newId))
@@ -139,7 +142,7 @@ export async function createRoomAction(
     return toErrorState(error, values)
   }
   revalidatePath(propBase(propertyId))
-  if (wantsPhotos(values)) {
+  if (wantsFollowUp(values)) {
     return { status: 'success', message: 'Room created.', entityId: roomId }
   }
   redirect(`${propBase(propertyId)}/rooms/${roomId}`)
@@ -247,4 +250,66 @@ export async function deleteRateAction(formData: FormData): Promise<void> {
   const rateId = intField(formData, 'rate_id')
   await rates.deleteRate(propertyId, rateId)
   revalidatePath(propBase(propertyId))
+}
+
+/* ------------------------------------------------------------------ *
+ * Batches: a whole JSON draft of rooms (with beds and rates), or of rates, in one request
+ * ------------------------------------------------------------------ */
+
+export type BatchResult =
+  | { ok: true; message: string; roomIds?: number[] }
+  | { ok: false; message: string }
+
+function parseDraft(json: string): unknown {
+  try {
+    return JSON.parse(json)
+  } catch {
+    throw new ServiceError(
+      'That list could not be read. Try again.',
+      'validation',
+    )
+  }
+}
+
+function batchError(error: unknown): BatchResult {
+  if (error instanceof ServiceError)
+    return { ok: false, message: error.message }
+  console.error('[landlord/properties] batch failed:', error)
+  return { ok: false, message: 'Something went wrong. Please try again.' }
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+export async function createRoomsBatchAction(
+  propertyId: number,
+  json: string,
+): Promise<BatchResult> {
+  try {
+    const done = await rooms.createRoomsBatch(propertyId, parseDraft(json))
+    revalidatePath(propBase(propertyId))
+    const extra = [
+      done.beds > 0 ? plural(done.beds, 'bed') : null,
+      done.rates > 0 ? plural(done.rates, 'rental rate') : null,
+    ].filter(Boolean)
+    return {
+      ok: true,
+      message: `Added ${plural(done.rooms, 'room')}${extra.length ? ` with ${extra.join(' and ')}` : ''}.`,
+      roomIds: done.roomIds,
+    }
+  } catch (error) {
+    return batchError(error)
+  }
+}
+
+export async function createRatesBatchAction(
+  propertyId: number,
+  json: string,
+): Promise<BatchResult> {
+  try {
+    const done = await rates.createRatesBatch(propertyId, parseDraft(json))
+    revalidatePath(propBase(propertyId))
+    return { ok: true, message: `Added ${plural(done.rates, 'rental rate')}.` }
+  } catch (error) {
+    return batchError(error)
+  }
 }

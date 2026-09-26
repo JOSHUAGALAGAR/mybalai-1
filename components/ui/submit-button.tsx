@@ -9,6 +9,8 @@ type Props = {
   pendingText?: string
   variant?: 'default' | 'secondary' | 'destructive' | 'outline'
   className?: string
+  /** For forms submitted by script (not a plain `action`), where useFormStatus stays false. */
+  pending?: boolean
 }
 
 export function SubmitButton({
@@ -16,8 +18,10 @@ export function SubmitButton({
   pendingText = 'Working…',
   variant = 'default',
   className,
+  pending: externalPending,
 }: Props) {
-  const { pending } = useFormStatus()
+  const status = useFormStatus()
+  const pending = status.pending || Boolean(externalPending)
   return (
     <Button
       type="submit"

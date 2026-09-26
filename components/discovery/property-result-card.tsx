@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MapPin } from 'lucide-react'
+import { MapPin, Rocket } from 'lucide-react'
 
 import { StarRating } from '@/components/discovery/star-rating'
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,7 +15,13 @@ export function PropertyResultCard({ item }: { item: DiscoveryCard }) {
   return (
     <Link href={`/discover/${item.propertyId}`} className="block">
       <Card className="h-full overflow-hidden transition-colors hover:border-ring/60">
-        <div className="aspect-[16/10] bg-muted">
+        <div className="relative aspect-[16/10] bg-muted">
+          {item.boosted && (
+            <span className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground shadow">
+              <Rocket className="size-3" aria-hidden />
+              Boosted
+            </span>
+          )}
           {item.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img

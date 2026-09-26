@@ -38,8 +38,10 @@ function linkFor(
       return '/messages'
     case 'review':
       return role === 'tenant' ? '/reviews' : `${managerArea}/reviews`
-    case 'subscription':
-      return '/landlord/plan'
+    case 'boost':
+      return '/landlord/boosts'
+    case 'payout':
+      return '/landlord/earnings'
     default:
       return null
   }

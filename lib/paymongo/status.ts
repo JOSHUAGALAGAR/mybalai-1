@@ -17,7 +17,10 @@ export const FAILED_EVENTS = [
   'checkout_session.payment.failed',
 ] as const
 
-export type PaymongoOutcome = 'paid' | 'failed' | 'ignore'
+/** PayMongo sends this when money is given back (from the dashboard or the API). */
+export const REFUNDED_EVENTS = ['payment.refunded'] as const
+
+export type PaymongoOutcome = 'paid' | 'failed' | 'refunded' | 'ignore'
 
 export function mapPaymongoEvent(
   eventType: string | null | undefined,
@@ -25,6 +28,8 @@ export function mapPaymongoEvent(
   if (!eventType) return 'ignore'
   if ((PAID_EVENTS as readonly string[]).includes(eventType)) return 'paid'
   if ((FAILED_EVENTS as readonly string[]).includes(eventType)) return 'failed'
+  if ((REFUNDED_EVENTS as readonly string[]).includes(eventType))
+    return 'refunded'
   return 'ignore'
 }
 

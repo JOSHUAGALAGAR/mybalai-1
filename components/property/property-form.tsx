@@ -1,12 +1,23 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useState } from 'react'
+import { useActionState, useRef, useState } from 'react'
 
-import type { MutationState } from '@/app/(protected)/landlord/properties/actions'
+import {
+  createRoomsBatchAction,
+  type MutationState,
+} from '@/app/(protected)/landlord/properties/actions'
 import { AdvanceDepositFields } from '@/components/property/advance-deposit-fields'
 import { LocationPicker } from '@/components/property/location-picker'
 import { ImagePicker } from '@/components/property/image-picker'
+import {
+  photoJobs,
+  RoomListBuilder,
+  roomsPayload,
+  sendRoomPhotos,
+  type PhotoJob,
+  type RoomItem,
+} from '@/components/property/room-list-builder'
 import { useStagedPhotos } from '@/components/property/use-staged-photos'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -27,6 +38,7 @@ export function PropertyForm({
   propertyId,
   initial = {},
   typeOptions,
+  roomTypeOptions = [],
   submitLabel,
   pendingLabel,
   cancelHref,
@@ -38,6 +50,8 @@ export function PropertyForm({
   propertyId?: number
   initial?: Record<string, string>
   typeOptions: Option[]
+  /** Create mode: when given, rooms can be added right here, in the same save. */
+  roomTypeOptions?: Option[]
   submitLabel: string
   pendingLabel: string
   cancelHref: string
@@ -49,12 +63,45 @@ export function PropertyForm({
     action,
     undefined,
   )
+  const [rooms, setRooms] = useState<RoomItem[]>([])
+  const [stage, setStage] = useState<string | null>(null)
+  // null = the rooms are not saved yet; an array = rooms saved, these photos still to upload
+  const roomPhotoJobs = useRef<PhotoJob[] | null>(null)
+
+  /** After the property exists: save all rooms in one request, then their photos. Safe to repeat. */
+  async function saveRooms(propertyId: number): Promise<string | null> {
+    if (rooms.length === 0) return null
+    if (roomPhotoJobs.current === null) {
+      setStage('Saving rooms…')
+      const res = await createRoomsBatchAction(propertyId, roomsPayload(rooms))
+      setStage(null)
+      if (!res.ok || !res.roomIds) {
+        return `the rooms were not saved (${res.message}). You can add them from the property page.`
+      }
+      roomPhotoJobs.current = photoJobs(rooms, res.roomIds)
+    }
+    if (roomPhotoJobs.current.length > 0) {
+      const failed = await sendRoomPhotos(
+        propertyId,
+        roomPhotoJobs.current,
+        setStage,
+      )
+      setStage(null)
+      roomPhotoJobs.current = failed
+      if (failed.length > 0) {
+        return `the photos for ${failed.map((f) => f.label).join(', ')} did not upload.`
+      }
+    }
+    return null
+  }
+
   const photos = useStagedPhotos({
     state,
     api: photoApi,
     uploadFile: photoUpload,
     targetFor: (id) => ({ kind: 'property', propertyId: id }),
     nextHref: (id) => `/landlord/properties/${id}`,
+    afterCreate: mode === 'create' ? saveRooms : undefined,
   })
   const saving = photos.savedId !== undefined
   const [phone, setPhone] = useState(
@@ -223,6 +270,11 @@ export function PropertyForm({
           Photos are managed on the property page, under Photos.
         </p>
       )}
+      {stage && (
+        <p role="status" className="text-muted-foreground text-sm">
+          Property saved. {stage}
+        </p>
+      )}
       {photos.progress && (
         <p role="status" className="text-muted-foreground text-sm">
           Property saved. Uploading photo{' '}
@@ -233,10 +285,7 @@ export function PropertyForm({
       {photos.failure && (
         <Alert variant="destructive">
           <AlertDescription className="space-y-2">
-            <p>
-              The property was saved, but the photos did not upload:{' '}
-              {photos.failure}
-            </p>
+            <p>The property was saved, but {photos.failure}</p>
             <div className="flex gap-2">
               <Button type="button" size="sm" onClick={photos.retry}>
                 Try again
@@ -266,6 +315,35 @@ export function PropertyForm({
         name="google_place_id"
         value={v.google_place_id ?? ''}
       />
+
+      {mode === 'create' && (
+        <section
+          aria-label="Rooms"
+          className="space-y-3 rounded-2xl border border-border p-4"
+        >
+          <input type="hidden" name="room_count" value={rooms.length} />
+          <div>
+            <h2 className="text-base font-bold text-foreground">
+              Rooms{' '}
+              <span className="text-sm font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Add rooms now — with beds, rental rates and photos — and they are
+              saved together with the property in one go. Or skip this and add
+              them later from the property page.
+            </p>
+          </div>
+          <RoomListBuilder
+            items={rooms}
+            onChange={setRooms}
+            typeOptions={roomTypeOptions}
+            defaults={{ advance: false, deposit: false }}
+            disabled={saving}
+          />
+        </section>
+      )}
 
       <FormField
         label="Description"

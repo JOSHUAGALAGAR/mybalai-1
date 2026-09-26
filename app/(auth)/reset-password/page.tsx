@@ -11,10 +11,10 @@ export default function ResetPasswordPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
           Set a new password
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           Choose a new password for your account.
         </p>
       </div>

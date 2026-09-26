@@ -3,11 +3,11 @@
 import { useActionState } from 'react'
 
 import {
-  createRateAction,
   deleteRateAction,
   updateRateAction,
   type MutationState,
 } from '@/app/(protected)/landlord/properties/actions'
+import { RateBatchModal } from '@/components/property/rate-batch-modal'
 import { ConfirmButton } from '@/components/property/confirm-button'
 import { FormField, nativeControlClass } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
@@ -40,11 +40,6 @@ export function RateManager({
   rooms: RoomOption[]
   rates: RateView[]
 }) {
-  const [state, formAction] = useActionState<MutationState, FormData>(
-    createRateAction,
-    undefined,
-  )
-
   if (rooms.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -70,31 +65,7 @@ export function RateManager({
         </ul>
       )}
 
-      <form
-        action={formAction}
-        className="grid gap-3 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2 lg:grid-cols-5"
-        noValidate
-      >
-        <input type="hidden" name="property_id" value={propertyId} />
-        <RateFields
-          idPrefix="new-rate"
-          rooms={rooms}
-          errs={state?.status === 'error' ? state.fieldErrors : undefined}
-        />
-        <div className="flex items-end lg:col-span-5">
-          {state?.status === 'error' && (
-            <p className="mr-3 text-xs text-destructive">{state.message}</p>
-          )}
-          {state?.status === 'success' && (
-            <p className="mr-3 text-xs text-muted-foreground">
-              {state.message}
-            </p>
-          )}
-          <SubmitButton pendingText="Adding…" variant="secondary">
-            Add rate
-          </SubmitButton>
-        </div>
-      </form>
+      <RateBatchModal propertyId={propertyId} rooms={rooms} />
     </div>
   )
 }

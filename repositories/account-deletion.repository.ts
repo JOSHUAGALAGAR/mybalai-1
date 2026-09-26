@@ -100,15 +100,6 @@ export const deleteLandlordProfile = (userId: number) =>
     'remove your profile',
   )
 
-export async function cancelSubscriptions(landlordId: number): Promise<void> {
-  const { error } = await db()
-    .from('landlord_subscriptions')
-    .update({ status: 'cancelled', ends_at: new Date().toISOString() })
-    .eq('landlord_id', landlordId)
-    .neq('status', 'cancelled')
-  if (error) fail('cancel your subscription')(error)
-}
-
 /**
  * The point of no return: scrub the personal data from the account row and cut its link to the
  * login. Bookings and payments keep pointing at this row (accounting records), but it no longer

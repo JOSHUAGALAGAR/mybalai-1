@@ -3,11 +3,13 @@ import { isPaymongoConfigured } from '@/lib/env.server'
 import { getMyBooking } from '@/services/bookings.service'
 import { listEligibleConversations } from '@/services/mobile-messaging.service'
 import { latestPaymentForMyBooking } from '@/services/payments.service'
+import { reconcileMyPendingPayments } from '@/services/paymongo.service'
 
 export const dynamic = 'force-dynamic'
 
 export const GET = mobileRoute<{ id: string }>(async ({ params }) => {
   const bookingId = idParam(params.id)
+  await reconcileMyPendingPayments() // see the list route: settle what PayMongo already has as paid
   const [booking, payment, eligible] = await Promise.all([
     getMyBooking(bookingId),
     latestPaymentForMyBooking(bookingId),

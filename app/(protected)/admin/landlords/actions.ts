@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 
-import * as subscriptions from '@/services/subscriptions.service'
+import { createLandlord } from '@/services/admin.service'
 import { ServiceError } from '@/services/errors'
 
 export type LandlordActionState =
@@ -15,57 +15,29 @@ export type LandlordActionState =
     }
   | undefined
 
-function toObject(formData: FormData): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [k, v] of formData.entries()) {
-    if (typeof v === 'string') out[k] = v
-  }
-  return out
-}
-
-function toErrorState(
-  error: unknown,
-  values: Record<string, string>,
-): LandlordActionState {
-  if (error instanceof ServiceError) {
-    return {
-      status: 'error',
-      message: error.message,
-      fieldErrors: error.fieldErrors,
-      values,
-    }
-  }
-  console.error('[admin/landlords] action failed:', error)
-  return { status: 'error', message: 'Something went wrong.', values }
-}
-
 export async function createLandlordAction(
   _prev: LandlordActionState,
   formData: FormData,
 ): Promise<LandlordActionState> {
-  const values = toObject(formData)
+  const values: Record<string, string> = {}
+  for (const [k, v] of formData.entries()) {
+    if (typeof v === 'string') values[k] = v
+  }
   let legacyUserId: number
   try {
-    ;({ legacyUserId } = await subscriptions.createLandlord(values))
+    ;({ legacyUserId } = await createLandlord(values))
   } catch (error) {
-    return toErrorState(error, values)
+    if (error instanceof ServiceError) {
+      return {
+        status: 'error',
+        message: error.message,
+        fieldErrors: error.fieldErrors,
+        values,
+      }
+    }
+    console.error('[admin/landlords] action failed:', error)
+    return { status: 'error', message: 'Something went wrong.', values }
   }
   revalidatePath('/admin/landlords')
   redirect(`/admin/landlords/${legacyUserId}`)
-}
-
-export async function assignSubscriptionAction(
-  _prev: LandlordActionState,
-  formData: FormData,
-): Promise<LandlordActionState> {
-  const values = toObject(formData)
-  const landlordId = Number(values.landlord_id)
-  try {
-    await subscriptions.assignSubscription(values)
-  } catch (error) {
-    return toErrorState(error, values)
-  }
-  revalidatePath('/admin/subscriptions')
-  revalidatePath(`/admin/landlords/${landlordId}`)
-  redirect(`/admin/landlords/${landlordId}`)
 }

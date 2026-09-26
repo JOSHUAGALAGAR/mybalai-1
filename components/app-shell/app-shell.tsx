@@ -6,6 +6,7 @@ import { PanelLeftClose, PanelLeftOpen, Menu } from 'lucide-react'
 
 import { NotificationBell } from '@/components/app-shell/notification-bell'
 import { SidebarNav } from '@/components/app-shell/sidebar-nav'
+import { BrandLogo } from '@/components/brand/brand-logo'
 import { UserMenu, type UserMenuUser } from '@/components/app-shell/user-menu'
 import { Button } from '@/components/ui/button'
 import {
@@ -53,9 +54,9 @@ export function AppShell({
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-muted/20">
+    <div className="flex min-h-dvh flex-col bg-muted/40">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-background px-3 sm:px-4">
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur sm:px-4">
         {/* Mobile nav trigger */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
@@ -70,7 +71,9 @@ export function AppShell({
           </SheetTrigger>
           <SheetContent side="left" className="w-72 p-0">
             <SheetHeader className="border-b border-border">
-              <SheetTitle className="text-left">MyBalai</SheetTitle>
+              <SheetTitle className="text-left">
+                <BrandLogo size={30} />
+              </SheetTitle>
             </SheetHeader>
             <div className="overflow-y-auto px-3">
               <SidebarNav
@@ -96,8 +99,8 @@ export function AppShell({
           )}
         </Button>
 
-        <Link href="/" className="font-semibold tracking-tight text-foreground">
-          MyBalai
+        <Link href="/" aria-label="MyBalai home" className="ml-1">
+          <BrandLogo size={32} />
         </Link>
 
         <div className="ml-auto flex items-center gap-1">
@@ -114,7 +117,7 @@ export function AppShell({
             collapsed ? 'w-16' : 'w-60',
           )}
         >
-          <div className="sticky top-14">
+          <div className="sticky top-16">
             <SidebarNav sections={sections} collapsed={collapsed} />
           </div>
         </aside>

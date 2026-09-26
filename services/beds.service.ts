@@ -1,6 +1,5 @@
 import 'server-only'
 
-import { isSuperadmin } from '@/lib/permissions/properties'
 import * as bedsRepo from '@/repositories/beds.repository'
 import * as referenceRepo from '@/repositories/reference.repository'
 import { parseOrThrow } from '@/services/errors'
@@ -9,7 +8,6 @@ import {
   requireManageableRoom,
   requireOperableBed,
 } from '@/services/property-access'
-import * as subscriptions from '@/services/subscriptions.service'
 import { bedFormSchema, bedStatusSchema } from '@/schemas/bed'
 
 export async function getBedStatuses() {
@@ -21,12 +19,9 @@ export async function createBed(
   roomId: number,
   input: unknown,
 ): Promise<bedsRepo.BedRow> {
-  const { user, property } = await requireManageableRoom(propertyId, roomId)
+  await requireManageableRoom(propertyId, roomId)
   const data = parseOrThrow(bedFormSchema, input)
 
-  if (!isSuperadmin(user) && property.property_owner != null) {
-    await subscriptions.assertCanAddBed(property.property_owner, roomId)
-  }
   const statusId = await referenceRepo.resolveStatusId(
     'bed_statuses',
     data.status_code,

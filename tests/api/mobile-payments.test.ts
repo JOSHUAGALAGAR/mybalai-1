@@ -18,6 +18,7 @@ vi.mock('@/lib/env.server', () => ({
 vi.mock('@/services/paymongo.service', () => ({
   startBookingCheckout: vi.fn(),
   reconcilePayment: vi.fn(),
+  reconcileMyPendingPayments: vi.fn().mockResolvedValue(0),
 }))
 vi.mock('@/services/payments.service', () => ({
   getMyPaymentSummary: vi.fn(),
@@ -275,6 +276,23 @@ describe('GET /api/mobile/bookings/[id] (payment fields)', () => {
     expect(data.onlinePaymentsAvailable).toBe(true)
     expect(data).not.toHaveProperty('tenantId')
     expect(data).not.toHaveProperty('propertyOwnerId')
+  })
+
+  it('asks PayMongo about pending payments first, so a paid booking stops saying "payment pending"', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(tenant as never)
+    vi.mocked(bookings.getMyBooking).mockResolvedValue({
+      bookingId: 99,
+      propertyId: 1,
+      propertyOwnerId: 5,
+    } as never)
+    vi.mocked(payments.latestPaymentForMyBooking).mockResolvedValue(null)
+    await detail.GET(
+      new Request('http://x/api/mobile/bookings/99', {
+        headers: { authorization: 'Bearer t' },
+      }),
+      ctx(),
+    )
+    expect(paymongo.reconcileMyPendingPayments).toHaveBeenCalled()
   })
 })
 

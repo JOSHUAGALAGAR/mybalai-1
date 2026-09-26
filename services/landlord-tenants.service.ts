@@ -26,6 +26,8 @@ export type ManagedTenant = {
   name: string | null
   email: string | null
   phone: string | null
+  /** ID checked and approved by MyBalai (the Verified badge). */
+  idVerified: boolean
   /** Where they are now: staying (`checked_in`), arriving soon (`confirmed`), or gone (`checked_out`). */
   phase: 'current' | 'upcoming' | 'past'
   stays: TenantStay[]
@@ -40,8 +42,10 @@ const isStayStatus = (code: string | null): code is StayStatus =>
 /** Current tenants first, then those arriving, then past — and by name within each group. */
 const PHASE_ORDER = { current: 0, upcoming: 1, past: 2 } as const
 
-export async function listMyTenants(): Promise<ManagedTenant[]> {
-  const bookings = await listManagedBookings('landlord')
+export async function listMyTenants(
+  area: 'landlord' | 'caretaker' = 'landlord',
+): Promise<ManagedTenant[]> {
+  const bookings = await listManagedBookings(area)
 
   const stays = new Map<number, TenantStay[]>()
   const names = new Map<number, string | null>()
@@ -89,6 +93,7 @@ export async function listMyTenants(): Promise<ManagedTenant[]> {
         name: account?.full_name ?? names.get(tenantId) ?? null,
         email: account?.email ?? null,
         phone: account?.phone ?? null,
+        idVerified: Boolean(account?.id_verified_at),
         phase,
         stays: sorted,
       }

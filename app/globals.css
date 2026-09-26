@@ -1,6 +1,6 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -9,6 +9,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --shadow-card: 0 4px 14px rgba(11, 42, 51, 0.07);
+  --shadow-sheet: 0 -8px 30px rgba(11, 42, 51, 0.06);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -18,6 +20,15 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-brand: var(--brand);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-strong: var(--primary-strong);
+  --color-hero-top: var(--hero-top);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-destructive-soft: var(--destructive-soft);
   --color-viz-1: var(--viz-1);
   --color-viz-track: var(--viz-track);
   --color-viz-good: var(--viz-good);
@@ -52,79 +63,100 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  /* Dashboard charts: one sequential blue; track is a lighter step of the same ramp. */
-  --viz-1: #2a78d6;
-  --viz-track: #cde2fb;
-  --viz-good: #006300;
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* MyBalai design tokens — the same palette as the mobile app (src/constants/theme.ts). */
+  --background: #ffffff;
+  --foreground: #101b24;
+  --card: #ffffff;
+  --card-foreground: #101b24;
+  --popover: #ffffff;
+  --popover-foreground: #101b24;
+  /* Buttons and links use the deeper teal so small white text stays readable (4.5:1). */
+  --primary: #2f8374;
+  --primary-foreground: #ffffff;
+  --primary-strong: #2f8374;
+  /* The brand teal, for large shapes, focus rings and decoration. */
+  --brand: #4aa394;
+  --primary-soft: #e3f2ef;
+  --hero-top: #e4eef1;
+  --secondary: #e3f2ef;
+  --secondary-foreground: #1f6356;
+  --muted: #eef3f4;
+  --muted-foreground: #5b6770;
+  --accent: #e3f2ef;
+  --accent-foreground: #1f6356;
+  --destructive: #c93b3b;
+  --destructive-soft: #fbeaea;
+  --success: #2f8374;
+  --success-soft: #e3f2ef;
+  --warning: #8a5a00;
+  --warning-soft: #fdf0d5;
+  --border: #e4e9ec;
+  --input: #d5dde1;
+  --ring: #4aa394;
+  --chart-1: #4aa394;
+  --chart-2: #2f8374;
+  --chart-3: #1f6356;
+  --chart-4: #6bcbb9;
+  --chart-5: #a9dcd2;
+  /* Dashboard charts: one sequential teal; the track is a lighter step of the same ramp. */
+  --viz-1: #2f8374;
+  --viz-track: #cfe6e1;
+  --viz-good: #17703f;
+  --radius: 1rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #101b24;
+  --sidebar-primary: #2f8374;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e3f2ef;
+  --sidebar-accent-foreground: #1f6356;
+  --sidebar-border: #e4e9ec;
+  --sidebar-ring: #4aa394;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --viz-1: #3987e5;
-  --viz-track: #104281;
-  --viz-good: #0ca30c;
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #0e1518;
+  --foreground: #f2f6f7;
+  --card: #152024;
+  --card-foreground: #f2f6f7;
+  --popover: #152024;
+  --popover-foreground: #f2f6f7;
+  --primary: #5cc0ae;
+  --primary-foreground: #06201b;
+  --primary-strong: #6bcbb9;
+  --brand: #5cc0ae;
+  --primary-soft: #173a35;
+  --hero-top: #15262b;
+  --secondary: #173a35;
+  --secondary-foreground: #6bcbb9;
+  --muted: #1c2a2f;
+  --muted-foreground: #b6c2c8;
+  --accent: #173a35;
+  --accent-foreground: #6bcbb9;
+  --destructive: #e66767;
+  --destructive-soft: #3a1c1c;
+  --success: #6bcbb9;
+  --success-soft: #173a35;
+  --warning: #fab219;
+  --warning-soft: #3a2c0d;
+  --border: #26363b;
+  --input: #2f4147;
+  --ring: #5cc0ae;
+  --chart-1: #5cc0ae;
+  --chart-2: #6bcbb9;
+  --chart-3: #4aa394;
+  --chart-4: #2f8374;
+  --chart-5: #1f6356;
+  --viz-1: #5cc0ae;
+  --viz-track: #1e4a43;
+  --viz-good: #6bcbb9;
+  --sidebar: #152024;
+  --sidebar-foreground: #f2f6f7;
+  --sidebar-primary: #5cc0ae;
+  --sidebar-primary-foreground: #06201b;
+  --sidebar-accent: #173a35;
+  --sidebar-accent-foreground: #6bcbb9;
+  --sidebar-border: #26363b;
+  --sidebar-ring: #5cc0ae;
 }
 
 @layer base {
@@ -133,6 +165,11 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
   }
   html {
     @apply font-sans;

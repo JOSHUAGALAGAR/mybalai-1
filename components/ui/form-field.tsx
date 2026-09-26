@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 /** Classes that make a native <select> match the shadcn Input look. */
 export const nativeControlClass =
-  'flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20'
+  'flex h-11 w-full rounded-2xl border border-input bg-background px-4 py-2 text-sm outline-none transition-[color,box-shadow] focus-visible:border-brand focus-visible:ring-4 focus-visible:ring-brand/20 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20'
 
 export function FormField({
   label,

@@ -17,7 +17,6 @@ vi.mock('@/repositories/account-deletion.repository', () => ({
   deleteReviewsBy: vi.fn(),
   deleteTenantProfile: vi.fn(),
   deleteLandlordProfile: vi.fn(),
-  cancelSubscriptions: vi.fn(),
   anonymizeAccount: vi.fn(),
   deleteAuthUser: vi.fn(),
 }))
@@ -169,6 +168,21 @@ describe('deleteMyAccount — safety checks come first', () => {
     })
     expect(repo.anonymizeAccount).not.toHaveBeenCalled()
   })
+  it('a web caller that already verified the password can delete without a mobile session', async () => {
+    asUser(['tenant'])
+    vi.mocked(dal.getSessionAuthMethods).mockResolvedValue([])
+    await expect(
+      svc.deleteMyAccount({ confirm: 'DELETE' }, { passwordConfirmed: true }),
+    ).resolves.toBeUndefined()
+    // ...but the typed confirmation and the active-booking rule still apply
+    await expect(
+      svc.deleteMyAccount({ confirm: 'nope' }, { passwordConfirmed: true }),
+    ).rejects.toBeTruthy()
+    vi.mocked(repo.countActiveBookings).mockResolvedValue(1)
+    await expect(
+      svc.deleteMyAccount({ confirm: 'DELETE' }, { passwordConfirmed: true }),
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
   it('a password sign-in must be fresh (last 5 minutes)', async () => {
     asUser(['tenant'])
     for (const age of [null, 301, 3600]) {
@@ -237,7 +251,6 @@ describe('deleteMyAccount — what happens, in what order', () => {
     )
     expect(dal.invalidateCurrentUser).toHaveBeenCalledWith('auth-7')
     expect(props.softDeleteProperty).not.toHaveBeenCalled() // a tenant owns no listings
-    expect(repo.cancelSubscriptions).not.toHaveBeenCalled()
   })
 
   it('a landlord: listings are taken off, subscription cancelled, profile removed', async () => {
@@ -247,7 +260,6 @@ describe('deleteMyAccount — what happens, in what order', () => {
     expect(props.softDeleteProperty).toHaveBeenCalledTimes(2)
     expect(props.softDeleteProperty).toHaveBeenCalledWith(10)
     expect(props.softDeleteProperty).toHaveBeenCalledWith(11)
-    expect(repo.cancelSubscriptions).toHaveBeenCalledWith(7)
     expect(repo.deleteLandlordProfile).toHaveBeenCalledWith(7)
   })
 

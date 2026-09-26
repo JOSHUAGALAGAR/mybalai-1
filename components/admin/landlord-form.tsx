@@ -9,15 +9,11 @@ import {
 } from '@/app/(protected)/admin/landlords/actions'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { FormField, nativeControlClass } from '@/components/ui/form-field'
+import { FormField } from '@/components/ui/form-field'
 import { Input } from '@/components/ui/input'
 import { SubmitButton } from '@/components/ui/submit-button'
 
-export function LandlordForm({
-  plans,
-}: {
-  plans: { id: number; name: string }[]
-}) {
+export function LandlordForm() {
   const [state, action] = useActionState<LandlordActionState, FormData>(
     createLandlordAction,
     undefined,
@@ -84,27 +80,6 @@ export function LandlordForm({
           defaultValue={v.business_name ?? ''}
         />
       </FormField>
-      <FormField
-        label="Subscription plan"
-        htmlFor="plan_id"
-        error={errs.plan_id}
-        hint="Optional — you can assign one later. Without a plan the landlord cannot add listings."
-      >
-        <select
-          id="plan_id"
-          name="plan_id"
-          className={nativeControlClass}
-          defaultValue={v.plan_id ?? ''}
-        >
-          <option value="">No plan yet</option>
-          {plans.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </FormField>
-
       <div className="flex items-center gap-3">
         <SubmitButton pendingText="Creating…">Create landlord</SubmitButton>
         <Button asChild variant="outline">

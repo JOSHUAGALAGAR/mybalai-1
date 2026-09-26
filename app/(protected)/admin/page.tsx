@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
+  Banknote,
+  CalendarRange,
   CreditCard,
   FileBarChart,
   Megaphone,
@@ -9,30 +11,153 @@ import {
   Users,
 } from 'lucide-react'
 
+import { BarList } from '@/components/dashboard/bar-list'
+import { ChartCard } from '@/components/dashboard/chart-card'
+import { RevenueChart } from '@/components/dashboard/revenue-chart'
+import { Delta } from '@/components/dashboard/stat-tile'
 import { ModuleCard } from '@/components/dashboard/module-card'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { Button } from '@/components/ui/button'
 import { requireArea } from '@/lib/auth/dal'
 import { getListingOverview } from '@/services/admin.service'
 import { countPendingVerifications } from '@/services/verification.service'
-import { getSubscriptionOverview } from '@/services/subscriptions.service'
+import { auditActionLabel } from '@/lib/audit/actions'
+import { recentActivity } from '@/services/audit.service'
+import {
+  getPlatformReport,
+  type PlatformReport,
+} from '@/services/reports.service'
+import { countPendingApplications } from '@/services/applications.service'
+import { getBoostOverview } from '@/services/boosts.service'
+import { listLandlordsForAdmin } from '@/services/admin.service'
 
 export const metadata: Metadata = { title: 'Admin' }
 
+// The charts are a convenience layer: if they fail to load, the rest of the overview must still render.
+async function loadReport(): Promise<PlatformReport | null> {
+  try {
+    return await getPlatformReport()
+  } catch (error) {
+    console.error('[admin] overview charts failed to load', error)
+    return null
+  }
+}
+
+const peso = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  maximumFractionDigits: 0,
+})
+
+/** Landlord and boost counts for the overview; the section just hides if boosts are not set up yet. */
+async function loadLandlordSummary() {
+  const landlords = await listLandlordsForAdmin()
+  const boosts = await getBoostOverview().catch(() => null)
+  const applications = await countPendingApplications()
+  return {
+    landlords: landlords.length,
+    boostedNow: boosts?.liveNow ?? 0,
+    applications,
+  }
+}
+
 export default async function AdminOverviewPage() {
   await requireArea('superadmin')
-  const [overview, subs, pendingIds] = await Promise.all([
+  const [overview, subs, pendingIds, activity, report] = await Promise.all([
     getListingOverview(),
-    getSubscriptionOverview(),
+    loadLandlordSummary(),
     countPendingVerifications(),
+    recentActivity(6),
+    loadReport(),
   ])
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Platform administration"
-        subtitle="Review property listings from owners; users, subscriptions, and reports follow."
+        subtitle="Review listings, manage people and plans, oversee bookings and payments, and keep an eye on the platform."
       />
+
+      {report && (
+        <section>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-foreground">
+              Platform trends
+            </h2>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/admin/reports">Full reports</Link>
+            </Button>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartCard
+              title="Booking revenue"
+              subtitle={`${peso.format(report.revenue.bookingThisMonth)} this month`}
+            >
+              <RevenueChart months={report.revenue.bookingMonths} />
+              <p className="mt-2 text-xs text-muted-foreground">
+                <Delta
+                  pct={report.revenue.bookingChangePct}
+                  versus="last month"
+                />
+              </p>
+            </ChartCard>
+            <ChartCard
+              title="MyBalai revenue"
+              subtitle={`${peso.format(report.revenue.mybalaiThisMonth)} this month`}
+            >
+              <RevenueChart months={report.revenue.mybalaiMonths} />
+              <p className="mt-2 text-xs text-muted-foreground">
+                <Delta
+                  pct={report.revenue.mybalaiChangePct}
+                  versus="last month"
+                />
+              </p>
+            </ChartCard>
+            <ChartCard
+              title="Bookings by status"
+              subtitle={`${report.bookings.total} in total`}
+            >
+              {report.bookings.byStatus.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No bookings yet.
+                </p>
+              ) : (
+                <BarList
+                  ariaLabel="Bookings by status"
+                  max={Math.max(
+                    ...report.bookings.byStatus.map((s) => s.count),
+                  )}
+                  rows={report.bookings.byStatus.map((s) => ({
+                    key: s.code,
+                    label: s.label,
+                    value: s.count,
+                    display: String(s.count),
+                    href: `/admin/bookings?status=${s.code}`,
+                  }))}
+                />
+              )}
+            </ChartCard>
+            <ChartCard
+              title="New accounts"
+              subtitle={`${report.users.total} accounts, ${report.users.idVerified} ID verified`}
+            >
+              <BarList
+                ariaLabel="New accounts per month"
+                max={Math.max(
+                  1,
+                  ...report.users.newByMonth.map((m) => m.count),
+                )}
+                rows={report.users.newByMonth.map((m) => ({
+                  key: m.key,
+                  label: `${m.label} ${m.year}`,
+                  value: m.count,
+                  display: String(m.count),
+                }))}
+              />
+            </ChartCard>
+          </div>
+        </section>
+      )}
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -71,9 +196,7 @@ export default async function AdminOverviewPage() {
 
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-foreground">
-            Landlords &amp; subscriptions
-          </h2>
+          <h2 className="text-sm font-semibold text-foreground">Landlords</h2>
           <Button asChild size="sm" variant="outline">
             <Link href="/admin/landlords/new">New landlord</Link>
           </Button>
@@ -85,24 +208,17 @@ export default async function AdminOverviewPage() {
             href="/admin/landlords"
           />
           <StatTile
-            label="On an active plan"
-            value={subs.withActiveSubscription}
-            href="/admin/subscriptions"
+            label="Applications waiting"
+            value={subs.applications}
+            href="/admin/applications"
+            highlight={subs.applications > 0}
           />
-          <StatTile label="Plans" value={subs.plans} href="/admin/plans" />
           <StatTile
-            label="Active plans"
-            value={subs.activePlans}
-            href="/admin/plans"
+            label="Boosted right now"
+            value={subs.boostedNow}
+            href="/admin/boosts"
           />
         </div>
-        {subs.landlords > subs.withActiveSubscription && (
-          <p className="mt-2 text-sm text-muted-foreground">
-            {subs.landlords - subs.withActiveSubscription} landlord
-            {subs.landlords - subs.withActiveSubscription === 1 ? '' : 's'}{' '}
-            without an active subscription — they cannot add listings.
-          </p>
-        )}
       </section>
 
       <section>
@@ -125,6 +241,47 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-foreground">
+            Recent activity
+          </h2>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/admin/audit-logs">Full log</Link>
+          </Button>
+        </div>
+        {activity.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing recorded yet. Approvals, deactivations, ID reviews and
+            exports will show up here.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {activity.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 text-foreground">
+                  <span className="font-medium">
+                    {auditActionLabel(row.action)}
+                  </span>{' '}
+                  <span className="text-muted-foreground">— {row.summary}</span>
+                </span>
+                <span className="text-xs whitespace-nowrap text-muted-foreground">
+                  {row.actorName ?? 'System'} ·{' '}
+                  {new Date(row.createdAt).toLocaleString('en-PH', {
+                    timeZone: 'Asia/Manila',
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
         <h2 className="mb-3 text-sm font-semibold text-foreground">More</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <ModuleCard
@@ -135,27 +292,39 @@ export default async function AdminOverviewPage() {
           />
           <ModuleCard
             title="Portal ads"
-            description="Manage platform advertisements and target roles."
+            description="Banners for tenants, landlords and caretakers."
             icon={Megaphone}
-            phase={11}
+            href="/admin/ads"
+          />
+          <ModuleCard
+            title="Bookings"
+            description="Every booking on the platform, with status filters."
+            icon={CalendarRange}
+            href="/admin/bookings"
           />
           <ModuleCard
             title="Payments"
             description="Platform-wide payment oversight."
             icon={CreditCard}
-            phase={11}
+            href="/admin/payments"
+          />
+          <ModuleCard
+            title="Payouts & fees"
+            description="Set the withdrawal day, the minimum, and the fees; pay landlord requests."
+            icon={Banknote}
+            href="/admin/payouts"
           />
           <ModuleCard
             title="Reports"
-            description="Platform-wide operational and financial reports."
+            description="Revenue, bookings, listings and sign-ups, plus CSV exports."
             icon={FileBarChart}
-            phase={12}
+            href="/admin/reports"
           />
           <ModuleCard
             title="Audit logs"
-            description="Review privileged and sensitive actions."
+            description="Who did what, and when — permanent and read-only."
             icon={ScrollText}
-            phase={12}
+            href="/admin/audit-logs"
           />
           <ModuleCard
             title="Settings"

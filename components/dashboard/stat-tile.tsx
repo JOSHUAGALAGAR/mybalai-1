@@ -20,8 +20,8 @@ export function StatTile({ label, value, footnote, href }: Props) {
       className={cn('h-full', href && 'transition-colors hover:bg-muted/40')}
     >
       <CardContent className="flex flex-col gap-1">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold tracking-tight text-foreground">
+        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+        <p className="text-2xl font-extrabold tracking-tight text-foreground">
           {value}
         </p>
         {footnote && (

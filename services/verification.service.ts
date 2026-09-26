@@ -22,6 +22,7 @@ import {
   idUploadRequestSchema,
 } from '@/schemas/verification'
 import { ServiceError, parseOrThrow } from '@/services/errors'
+import { recordAudit } from '@/services/audit.service'
 
 /**
  * Tenant ID verification. The tenant uploads the FRONT and BACK of a government ID; a superadmin
@@ -223,7 +224,7 @@ export type AdminVerificationDetail = AdminVerificationItem & {
 export async function getVerificationForAdmin(
   id: number,
 ): Promise<AdminVerificationDetail> {
-  await requireRole('superadmin')
+  const viewer = await requireRole('superadmin')
   const row = await repo.getById(id)
   if (!row) throw new ServiceError('Verification not found.', 'not_found')
   const [names, frontUrl, backUrl] = await Promise.all([
@@ -232,6 +233,15 @@ export async function getVerificationForAdmin(
     repo.signedViewUrl(row.back_path),
   ])
   const account = names.get(row.user_id)
+  // Opening the pictures of someone's government ID is itself a sensitive act: keep a trace.
+  await recordAudit({
+    actor: viewer,
+    action: 'verification.viewed',
+    targetType: 'verification',
+    targetId: id,
+    summary: `Viewed the ID of ${account?.fullName || account?.email || `user #${row.user_id}`}`,
+    details: { user_id: row.user_id },
+  })
   return {
     verificationId: row.verification_id,
     userId: row.user_id,
@@ -290,4 +300,16 @@ export async function decideVerification(
 
   const account = await usersRepo.getAccountById(row.user_id).catch(() => null)
   if (account?.auth_user_id) invalidateCurrentUser(account.auth_user_id)
+
+  await recordAudit({
+    actor: admin,
+    action: approve ? 'verification.approved' : 'verification.rejected',
+    targetType: 'verification',
+    targetId: id,
+    summary: `${approve ? 'Approved' : 'Rejected'} the ID of ${account?.full_name || account?.email || `user #${row.user_id}`}`,
+    details: {
+      user_id: row.user_id,
+      reason: approve ? null : (data.reason ?? null),
+    },
+  })
 }

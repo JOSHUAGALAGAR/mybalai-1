@@ -107,6 +107,443 @@ export interface Database {
         >
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          audit_log_id: number
+          actor_id: number | null
+          action: string
+          entity_type: string | null
+          entity_id: number | null
+          old_data: Record<string, unknown> | null
+          new_data: Record<string, unknown> | null
+          metadata: Record<string, unknown> | null
+          ip_address: string | null
+          user_agent: string | null
+          created_at: string
+          old_value: Record<string, unknown> | null
+          new_value: Record<string, unknown> | null
+        }
+        Insert: {
+          audit_log_id?: number
+          actor_id?: number | null
+          action: string
+          entity_type?: string | null
+          entity_id?: number | null
+          metadata?: Record<string, unknown> | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['audit_logs']['Insert']>
+        Relationships: []
+      }
+      portal_ads: {
+        Row: {
+          ad_id: number
+          title: string
+          message: string | null
+          image_filename: string | null
+          storage_path: string | null
+          link_url: string | null
+          link_label: string | null
+          starts_at: string | null
+          ends_at: string | null
+          is_active: boolean
+          /** Comma-separated role codes, e.g. "tenant,landlord". */
+          target_roles: string | null
+          created_by: number | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          ad_id?: number
+          title: string
+          message?: string | null
+          image_filename?: string | null
+          storage_path?: string | null
+          link_url?: string | null
+          link_label?: string | null
+          starts_at?: string | null
+          ends_at?: string | null
+          is_active?: boolean
+          target_roles?: string | null
+          created_by?: number | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['portal_ads']['Insert']>
+        Relationships: []
+      }
+      platform_fee_settings: {
+        Row: {
+          fee_setting_id: number
+          fee_type: string
+          fee_value: number
+          paymongo_fee_rate: number
+          is_active: boolean
+          updated_by: number | null
+          created_at: string
+        }
+        Insert: {
+          fee_setting_id?: number
+          fee_type?: string
+          fee_value?: number
+          paymongo_fee_rate?: number
+          is_active?: boolean
+          updated_by?: number | null
+          created_at?: string
+        }
+        Update: Partial<
+          Database['public']['Tables']['platform_fee_settings']['Insert']
+        >
+        Relationships: []
+      }
+      payout_settings: {
+        Row: {
+          payout_setting_id: number
+          minimum_threshold: number
+          currency: string
+          frequency: string
+          payout_day_1: number | null
+          payout_day_2: number | null
+          settlement_period_days: number
+          automatic_payout_enabled: boolean
+          payout_processing_fee: number
+          is_active: boolean
+          updated_by: number | null
+          created_at: string
+        }
+        Insert: {
+          payout_setting_id?: number
+          minimum_threshold?: number
+          currency?: string
+          frequency?: string
+          payout_day_1?: number | null
+          payout_day_2?: number | null
+          settlement_period_days?: number
+          automatic_payout_enabled?: boolean
+          payout_processing_fee?: number
+          is_active?: boolean
+          updated_by?: number | null
+          created_at?: string
+        }
+        Update: Partial<
+          Database['public']['Tables']['payout_settings']['Insert']
+        >
+        Relationships: []
+      }
+      landlord_earnings: {
+        Row: {
+          earning_id: number
+          landlord_id: number
+          booking_id: number | null
+          payment_id: number
+          gross_amount: number
+          fee_type: string
+          fee_rate: number
+          service_fee_amount: number
+          processing_fee_amount: number
+          adjustment_amount: number
+          net_amount: number
+          currency: string
+          status: string
+          payout_id: number | null
+          available_at: string | null
+          refund_amount: number
+          mybalai_revenue: number
+          refunded_at: string | null
+          clawback_settled_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          earning_id?: number
+          landlord_id: number
+          booking_id?: number | null
+          payment_id: number
+          gross_amount: number
+          fee_type: string
+          fee_rate: number
+          service_fee_amount: number
+          processing_fee_amount?: number
+          adjustment_amount?: number
+          net_amount: number
+          currency?: string
+          status?: string
+          payout_id?: number | null
+          available_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<
+          Database['public']['Tables']['landlord_earnings']['Insert']
+        >
+        Relationships: []
+      }
+      payouts: {
+        Row: {
+          payout_id: number
+          payout_batch_id: number | null
+          landlord_id: number
+          withdrawal_method_id: number | null
+          amount: number
+          currency: string
+          status: string
+          scheduled_date: string | null
+          requested_at: string
+          processing_started_at: string | null
+          completed_at: string | null
+          failed_at: string | null
+          provider: string | null
+          provider_payout_id: string | null
+          reference: string
+          failure_reason: string | null
+          created_by: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          payout_id?: number
+          landlord_id: number
+          withdrawal_method_id?: number | null
+          amount: number
+          currency?: string
+          status?: string
+          scheduled_date?: string | null
+          completed_at?: string | null
+          failed_at?: string | null
+          provider?: string | null
+          provider_payout_id?: string | null
+          reference: string
+          failure_reason?: string | null
+          created_by?: number | null
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['payouts']['Insert']>
+        Relationships: []
+      }
+      withdrawal_methods: {
+        Row: {
+          withdrawal_method_id: number
+          landlord_id: number
+          method_type: string
+          account_name: string
+          masked_account_number: string
+          provider_reference: string | null
+          is_verified: boolean
+          is_default: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          withdrawal_method_id?: number
+          landlord_id: number
+          method_type: string
+          account_name: string
+          masked_account_number: string
+          provider_reference?: string | null
+          is_verified?: boolean
+          is_default?: boolean
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: Partial<
+          Database['public']['Tables']['withdrawal_methods']['Insert']
+        >
+        Relationships: []
+      }
+      boost_packages: {
+        Row: {
+          package_id: number
+          name: string
+          days: number
+          price: number
+          is_active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          package_id?: number
+          name: string
+          days: number
+          price: number
+          is_active?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: Partial<
+          Database['public']['Tables']['boost_packages']['Insert']
+        >
+        Relationships: []
+      }
+      property_boosts: {
+        Row: {
+          boost_id: number
+          property_id: number
+          landlord_id: number
+          coins_spent: number
+          starts_at: string
+          ends_at: string | null
+          is_active: boolean
+          created_at: string
+          package_id: number | null
+          days: number | null
+          amount: number
+          processing_fee_amount: number
+          status: string
+          paymongo_session_id: string | null
+          paymongo_payment_id: string | null
+          paid_at: string | null
+          refunded_at: string | null
+          cancelled_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          boost_id?: number
+          property_id: number
+          landlord_id: number
+          starts_at?: string
+          ends_at?: string | null
+          is_active?: boolean
+          package_id?: number | null
+          days?: number | null
+          amount?: number
+          status?: string
+          paymongo_session_id?: string | null
+          refunded_at?: string | null
+          cancelled_reason?: string | null
+          updated_at?: string
+        }
+        Update: Partial<
+          Database['public']['Tables']['property_boosts']['Insert']
+        >
+        Relationships: []
+      }
+      landlord_applications: {
+        Row: {
+          application_id: number
+          full_name: string
+          email: string
+          phone: string
+          business_name: string | null
+          property_name: string
+          address: string
+          rooms_count: number
+          description: string | null
+          status: string
+          reject_reason: string | null
+          reviewed_by: number | null
+          reviewed_at: string | null
+          landlord_id: number | null
+          created_at: string
+        }
+        Insert: {
+          application_id?: number
+          full_name: string
+          email: string
+          phone: string
+          business_name?: string | null
+          property_name: string
+          address: string
+          rooms_count: number
+          description?: string | null
+          status?: string
+          reject_reason?: string | null
+          reviewed_by?: number | null
+          reviewed_at?: string | null
+          landlord_id?: number | null
+        }
+        Update: Partial<
+          Database['public']['Tables']['landlord_applications']['Insert']
+        >
+        Relationships: []
+      }
+      landlord_application_documents: {
+        Row: {
+          document_id: number
+          application_id: number
+          doc_type: string
+          storage_path: string
+          file_name: string
+          mime_type: string
+          size_bytes: number
+          created_at: string
+        }
+        Insert: {
+          document_id?: number
+          application_id: number
+          doc_type: string
+          storage_path: string
+          file_name: string
+          mime_type: string
+          size_bytes: number
+        }
+        Update: Partial<
+          Database['public']['Tables']['landlord_application_documents']['Insert']
+        >
+        Relationships: []
+      }
+      tenant_preferences: {
+        Row: {
+          legacy_user_id: number
+          budget_min: number | null
+          budget_max: number | null
+          area_label: string | null
+          area_lat: number | null
+          area_lng: number | null
+          max_distance_km: number
+          amenity_ids: number[]
+          room_type_ids: number[]
+          move_in: string
+          occupation: string | null
+          schedule: string | null
+          noise: string | null
+          share_lifestyle: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          legacy_user_id: number
+          budget_min?: number | null
+          budget_max?: number | null
+          area_label?: string | null
+          area_lat?: number | null
+          area_lng?: number | null
+          max_distance_km?: number
+          amenity_ids?: number[]
+          room_type_ids?: number[]
+          move_in?: string
+          occupation?: string | null
+          schedule?: string | null
+          noise?: string | null
+          share_lifestyle?: boolean
+          updated_at?: string
+        }
+        Update: Partial<
+          Database['public']['Tables']['tenant_preferences']['Insert']
+        >
+        Relationships: []
+      }
+      match_logs: {
+        Row: {
+          log_id: number
+          user_id: number
+          property_id: number
+          rank: number
+          score: number
+          created_at: string
+        }
+        Insert: {
+          log_id?: number
+          user_id: number
+          property_id: number
+          rank: number
+          score: number
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['match_logs']['Insert']>
+        Relationships: []
+      }
       user_roles: {
         Row: {
           legacy_user_id: number
@@ -1249,6 +1686,26 @@ export interface Database {
           p_response: string | null
         }
         Returns: string
+      }
+      refund_payment: {
+        Args: {
+          p_payment: number
+          p_actor: number | null
+          p_note: string | null
+        }
+        Returns: string
+      }
+      expire_property_boosts: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      settle_property_boost: {
+        Args: { p_boost: number; p_paymongo_payment_id: string | null }
+        Returns: string
+      }
+      request_landlord_payout: {
+        Args: { p_landlord: number; p_method: number }
+        Returns: number
       }
       settle_booking_payment: {
         Args: { p_payment: number; p_paymongo_payment_id: string | null }

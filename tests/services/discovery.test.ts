@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { discoveryQuerySchema } from '@/schemas/discovery'
 
+vi.mock('@/services/boosts.service', () => ({
+  liveBoostedIds: vi.fn().mockResolvedValue(new Set<number>()),
+}))
 vi.mock('@/lib/auth/dal', () => ({
   requireUser: vi.fn().mockResolvedValue({}),
 }))
@@ -16,7 +19,8 @@ vi.mock('@/repositories/reference.repository', () => ({
 }))
 
 const repo = await import('@/repositories/discovery.repository')
-const { searchProperties } = await import('@/services/discovery.service')
+const { searchProperties, getPropertyPins } =
+  await import('@/services/discovery.service')
 
 const q = (over: Record<string, unknown> = {}) =>
   discoveryQuerySchema.parse(over)
@@ -59,6 +63,25 @@ describe('searchProperties', () => {
     expect(r.pageCount).toBe(1)
   })
 
+  it('shows boosted properties first in the default order, marked as boosted', async () => {
+    const boosts = await import('@/services/boosts.service')
+    vi.mocked(boosts.liveBoostedIds).mockResolvedValueOnce(new Set([3]))
+    const r = await searchProperties(q())
+    expect(r.items.map((i) => i.propertyId)).toEqual([3, 1, 2])
+    expect(r.items.map((i) => i.boosted)).toEqual([true, false, false])
+  })
+
+  it('a price sort is still a price sort, boost or not', async () => {
+    const boosts = await import('@/services/boosts.service')
+    vi.mocked(boosts.liveBoostedIds).mockResolvedValueOnce(new Set([3]))
+    const r = await searchProperties(q({ sort: 'name' }))
+    expect(r.items.map((i) => i.propertyId)).toEqual(
+      [...r.items]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((i) => i.propertyId),
+    )
+  })
+
   it('filters by has-all amenities', async () => {
     const r = await searchProperties(q({ amenities: ['1', '2'] }))
     expect(r.items.map((i) => i.propertyId)).toEqual([1])
@@ -88,5 +111,49 @@ describe('searchProperties', () => {
     const r = await searchProperties(q())
     expect(r.items.find((i) => i.propertyId === 1)?.fromPrice).toBe(5000)
     expect(r.items.find((i) => i.propertyId === 3)?.fromPrice).toBeNull()
+  })
+})
+
+describe('getPropertyPins', () => {
+  it('lists only listings with a saved location, with their from-price, in two queries', async () => {
+    vi.mocked(repo.listVisibleProperties).mockResolvedValue([
+      {
+        ...(property(1, 'Alpha', '2026-03-01') as object),
+        latitude: 9.64,
+        longitude: 123.85,
+      },
+      {
+        ...(property(2, 'Bravo', '2026-02-01') as object),
+        latitude: null,
+        longitude: null,
+      },
+      {
+        ...(property(3, 'Charlie', '2026-01-01') as object),
+        latitude: 9.7,
+        longitude: 123.9,
+      },
+    ] as never)
+    const pins = await getPropertyPins()
+    expect(pins).toEqual([
+      {
+        propertyId: 1,
+        name: 'Alpha',
+        lat: 9.64,
+        lng: 123.85,
+        fromPrice: 5000,
+        fromPeriod: 'monthly',
+      },
+      {
+        propertyId: 3,
+        name: 'Charlie',
+        lat: 9.7,
+        lng: 123.9,
+        fromPrice: null,
+        fromPeriod: null,
+      },
+    ])
+    expect(repo.listVisibleProperties).toHaveBeenCalledTimes(1)
+    expect(repo.listActiveRates).toHaveBeenCalledTimes(1)
+    expect(repo.listActiveRates).toHaveBeenCalledWith([1, 3])
   })
 })

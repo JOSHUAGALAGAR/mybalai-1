@@ -58,7 +58,7 @@ export function LoginForm({
           labelRight={
             <Link
               href="/forgot-password"
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="text-xs font-semibold text-primary hover:underline"
             >
               Forgot password?
             </Link>
@@ -70,13 +70,13 @@ export function LoginForm({
         </SubmitButton>
       </form>
 
-      <AuthDivider label="or" />
+      <AuthDivider label="or continue with" />
       <GoogleButton next={next} />
 
       <p className="text-center text-sm text-muted-foreground">
-        No account?{' '}
-        <Link href="/signup" className="font-medium text-foreground underline">
-          Create one
+        New to MyBalai?{' '}
+        <Link href="/signup" className="font-bold text-primary hover:underline">
+          Create an account
         </Link>
       </p>
     </div>

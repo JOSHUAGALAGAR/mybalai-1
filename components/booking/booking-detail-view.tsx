@@ -63,7 +63,12 @@ export function BookingDetailView({
       peso.format(detail.totalAmount),
     ],
     ['Submitted', new Date(detail.submittedAt).toLocaleDateString()],
-    mode.kind === 'manage' ? ['Tenant', detail.tenantName ?? '—'] : ['', null],
+    mode.kind === 'manage'
+      ? [
+          'Tenant',
+          `${detail.tenantName ?? '—'}${detail.tenantIdVerified ? ' · ID verified ✓' : ''}`,
+        ]
+      : ['', null],
   ]
 
   return (

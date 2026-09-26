@@ -6,14 +6,19 @@ import { archivePropertyAction } from '@/app/(protected)/landlord/properties/act
 import { AmenitiesEditor } from '@/components/property/amenities-editor'
 import { ConfirmButton } from '@/components/property/confirm-button'
 import { StatusBadge } from '@/components/property/property-status-badge'
+import { PhotoThumb } from '@/components/property/photo-thumb'
 import { PhotoManager } from '@/components/property/photo-manager'
+import { RoomBatchModal } from '@/components/property/room-batch-modal'
 import { RateManager } from '@/components/property/rate-manager'
 import { Button } from '@/components/ui/button'
 import { requireArea } from '@/lib/auth/dal'
 import { advanceDepositLabel } from '@/schemas/booking'
 import { getBedStatuses } from '@/services/beds.service'
 import { ServiceError } from '@/services/errors'
-import { listGallery } from '@/services/property-images.service'
+import {
+  listGallery,
+  publicGalleries,
+} from '@/services/property-images.service'
 import {
   getPropertyFormOptions,
   getPropertyOverview,
@@ -57,6 +62,15 @@ export default async function PropertyDetailPage({
         return null
       }),
     ])
+
+  // Cover-first photo URLs for every room, in one query. The page works without them.
+  const roomPhotos = await publicGalleries(
+    'room',
+    rooms.map((r) => r.room_id),
+  ).catch((error) => {
+    console.error('[landlord] room photos unavailable:', error)
+    return new Map<number, string[]>()
+  })
 
   const propStatus = statuses.find(
     (s) => s.property_status_id === property.status_id,
@@ -190,13 +204,17 @@ export default async function PropertyDetailPage({
               ({rooms.length})
             </span>
           </h2>
-          <Button asChild size="sm" variant="secondary">
-            <Link
-              href={`/landlord/properties/${property.property_id}/rooms/new`}
-            >
-              Add room
-            </Link>
-          </Button>
+          <RoomBatchModal
+            propertyId={property.property_id}
+            typeOptions={roomOpts.types.map((t) => ({
+              id: t.room_type_id,
+              name: t.room_type_name,
+            }))}
+            defaults={{
+              advance: property.require_advance,
+              deposit: property.require_deposit,
+            }}
+          />
         </div>
         {rooms.length === 0 ? (
           <p className="text-sm text-muted-foreground">No rooms yet.</p>
@@ -211,14 +229,21 @@ export default async function PropertyDetailPage({
                 (b) => b.room_id === room.room_id,
               ).length
               return (
-                <li key={room.room_id}>
+                <li
+                  key={room.room_id}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40"
+                >
+                  <PhotoThumb
+                    photos={roomPhotos.get(room.room_id) ?? []}
+                    alt={roomLabel(room)}
+                  />
                   <Link
                     href={`/landlord/properties/${property.property_id}/rooms/${room.room_id}`}
-                    className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/40"
+                    className="flex min-w-0 flex-1 items-center justify-between gap-3"
                   >
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="min-w-0 text-sm font-medium text-foreground">
                       {roomLabel(room)}
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
                         {bedCount} {bedCount === 1 ? 'bed' : 'beds'} · max{' '}
                         {room.max_occupants}
                       </span>
