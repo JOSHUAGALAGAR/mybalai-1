@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- PM2 loads this file as CommonJS */
 // PM2 process file for production. The port must match the app port of the site in CloudPanel.
 const fs = require('node:fs')
 const path = require('node:path')
