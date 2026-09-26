@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist_Mono, Plus_Jakarta_Sans } from 'next/font/google'
+import { CookieNotice } from '@/components/legal/cookie-notice'
 import './globals.css'
 
 // The same typeface as the mobile app.
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     >
       <body className="flex min-h-full flex-col bg-background text-foreground">
         {children}
+        <CookieNotice />
       </body>
     </html>
   )

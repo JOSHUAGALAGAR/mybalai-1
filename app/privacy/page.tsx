@@ -86,6 +86,13 @@ export default function PrivacyPage() {
         </li>
       </ul>
 
+      <h2>Cookies</h2>
+      <p>
+        We only use cookies that are needed to sign you in and keep the site
+        working; there are no advertising or tracking cookies. Details are in
+        our <Link href="/cookies">Cookie Policy</Link>.
+      </p>
+
       <h2>Keeping it safe</h2>
       <p>
         Data is transmitted over HTTPS and stored with access controls. No

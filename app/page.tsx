@@ -15,9 +15,11 @@ import {
   ArrowRight,
 } from 'lucide-react'
 
+import { FeaturedProperties } from '@/components/marketing/featured-properties'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { SiteHeader } from '@/components/marketing/site-header'
 import { getAuthUser } from '@/lib/auth/dal'
+import { getFeaturedProperties } from '@/services/featured.service'
 import {
   Accordion,
   AccordionContent,
@@ -181,7 +183,10 @@ function FeatureList({ items }: { items: string[] }) {
 export default async function LandingPage() {
   // Light JWT check only (no DB) — the app entry point forwards to the right
   // role home via route guards.
-  const authUser = await getAuthUser()
+  const [authUser, featured] = await Promise.all([
+    getAuthUser(),
+    getFeaturedProperties(),
+  ])
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -251,6 +256,9 @@ export default async function LandingPage() {
             </div>
           </Section>
         </div>
+
+        {/* Featured properties */}
+        <FeaturedProperties items={featured} />
 
         {/* How it works */}
         <Section id="how-it-works">

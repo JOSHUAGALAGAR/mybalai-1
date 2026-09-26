@@ -14,6 +14,7 @@ const PUBLIC_EXACT_PATHS = new Set([
   // Legal pages are linked from sign-up, the mobile app and Google's consent screen.
   '/terms',
   '/privacy',
+  '/cookies',
   // How to delete your account: linked from Google Play's Data safety form.
   '/delete-account',
   // Property owners apply to become a landlord without an account.
