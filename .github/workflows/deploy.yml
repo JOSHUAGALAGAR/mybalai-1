@@ -21,6 +21,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Next generates the route/layout types (LayoutProps, PageProps…) that the code refers to.
+      - run: npx next typegen
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
