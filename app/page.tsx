@@ -13,11 +13,14 @@ import {
   Wallet,
   Star,
   ArrowRight,
+  Download,
+  Smartphone,
 } from 'lucide-react'
 
 import { FeaturedProperties } from '@/components/marketing/featured-properties'
 import { SiteFooter } from '@/components/marketing/site-footer'
 import { SiteHeader } from '@/components/marketing/site-header'
+import { formatMegabytes, getAndroidApp } from '@/lib/android-app'
 import { getAuthUser } from '@/lib/auth/dal'
 import { getFeaturedProperties } from '@/services/featured.service'
 import {
@@ -183,9 +186,10 @@ function FeatureList({ items }: { items: string[] }) {
 export default async function LandingPage() {
   // Light JWT check only (no DB) — the app entry point forwards to the right
   // role home via route guards.
-  const [authUser, featured] = await Promise.all([
+  const [authUser, featured, androidApp] = await Promise.all([
     getAuthUser(),
     getFeaturedProperties(),
+    getAndroidApp(),
   ])
 
   return (
@@ -227,6 +231,35 @@ export default async function LandingPage() {
                 <p className="mt-4 text-xs text-muted-foreground">
                   Free tenant account. No credit card required.
                 </p>
+
+                <div className="mt-8 rounded-2xl border border-border bg-card/70 p-4 backdrop-blur-sm sm:max-w-md">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Smartphone className="size-4 text-primary" />
+                    Get the MyBalai app
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {androidApp ? (
+                      <Button asChild>
+                        <a href="/download/android" download>
+                          <Download />
+                          Download for Android
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button disabled>Android app — coming soon</Button>
+                    )}
+                    <Badge variant="outline" className="px-3 py-1.5">
+                      App Store · Coming soon
+                    </Badge>
+                  </div>
+                  {androidApp ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Android APK · {formatMegabytes(androidApp.bytes)}. After
+                      downloading, open the file and allow installs from your
+                      browser if Android asks.
+                    </p>
+                  ) : null}
+                </div>
               </div>
 
               <ProductPreview />

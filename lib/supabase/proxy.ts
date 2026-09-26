@@ -21,6 +21,8 @@ const PUBLIC_EXACT_PATHS = new Set([
   '/apply',
   // PayMongo returns the tenant's phone browser here; it only redirects into the app.
   '/pay/return',
+  // The Android app (APK) download linked from the landing page.
+  '/download/android',
 ])
 const PUBLIC_PATH_PREFIXES = [
   '/login',
